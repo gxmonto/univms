@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 const { Store } = require('./store');
+const { SecretBox } = require('./secrets');
 const { DriverPool } = require('./drivers');
 const { StreamManager } = require('./streams');
 const { EventHub } = require('./events');
@@ -26,19 +27,26 @@ if (E2E) {
   app.commandLine.appendSwitch('use-fake-device-for-media-stream');
   app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
 }
+// A windowed app launched by double-click has no console on Windows; stdout/stderr writes can throw there and
+// would abort whatever called console.log. Make every console method unable to throw.
+for (const m of ['log', 'info', 'warn', 'error', 'debug', 'trace']) {
+  const orig = typeof console[m] === 'function' ? console[m].bind(console) : null;
+  console[m] = (...a) => { try { orig && orig(...a); } catch (_) {} };
+}
+for (const st of [process.stdout, process.stderr]) { try { st && st.on && st.on('error', () => {}); } catch (_) {} }
 const logBuffer = [];
 let logFile = null;
 function log(...args) {
   const line = `[${new Date().toISOString()}] ${args.map((a) => (typeof a === 'string' ? a : (() => { try { return JSON.stringify(a); } catch (_) { return String(a); } })())).join(' ')}`;
   logBuffer.push(line);
   if (logBuffer.length > 2000) logBuffer.splice(0, logBuffer.length - 2000);
-  console.log(line);
   if (logFile) {
     try {
       if (fs.existsSync(logFile) && fs.statSync(logFile).size > 2 * 1024 * 1024) fs.renameSync(logFile, logFile.replace(/\.log$/, '.1.log'));
       fs.appendFileSync(logFile, line + '\n');
     } catch (_) {}
   }
+  console.log(line);
 }
 process.on('uncaughtException', (e) => log('UNCAUGHT', e && e.stack ? e.stack : String(e)));
 process.on('unhandledRejection', (e) => log('UNHANDLED REJECTION', e && e.stack ? e.stack : String(e)));
@@ -97,7 +105,18 @@ if (!gotLock && !SMOKE && !E2E) {
     wc.on('did-start-navigation', (e) => { if (e.isMainFrame !== false) streams.stopAllFor(wc); });
     win.webContents.on('will-navigate', (e) => e.preventDefault());
     win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
-    win.webContents.on('render-process-gone', (_e, d) => { log('renderer gone', d.reason); streams.stopAllFor(wc); });
+    let rendererRestarts = [];
+    win.webContents.on('render-process-gone', (_e, d) => {
+      log('renderer gone', d.reason, 'exit code', d.exitCode);
+      streams.stopAllFor(wc);
+      if (d.reason === 'clean-exit' || win.isDestroyed()) return;
+      // A crashed renderer leaves a blank window; reload it (at most 3 times per minute to avoid a crash loop)
+      const now = Date.now();
+      rendererRestarts = rendererRestarts.filter((t) => now - t < 60000);
+      if (rendererRestarts.length >= 3) { log('renderer crashed repeatedly, not reloading'); return; }
+      rendererRestarts.push(now);
+      setTimeout(() => { if (!win.isDestroyed()) { log('reloading renderer after', d.reason); wc.reload(); } }, 500);
+    });
     win.on('close', (e) => {
       if (!params.aux && store.getSettings().minimizeToTray && !app.isQuitting && tray) { e.preventDefault(); win.hide(); }
     });
@@ -144,8 +163,10 @@ if (!gotLock && !SMOKE && !E2E) {
   app.whenReady().then(async () => {
     const userData = app.getPath('userData');
     try { fs.mkdirSync(path.join(userData, 'logs'), { recursive: true }); logFile = path.join(userData, 'logs', 'main.log'); } catch (_) {}
-    store = new Store(path.join(userData, 'univms-config.json'), safeStorage);
-    log('config file', store.file);
+    const secrets = new SecretBox(userData, { safeStorage, log });
+    store = new Store(path.join(userData, 'univms-config.json'), secrets);
+    log('config file', store.file, '| secrets key:', secrets.scheme, secrets.keyError ? `(previous key unreadable: ${secrets.keyError})` : '');
+    if (store.lostSecrets.length) log('secrets: saved passwords unreadable for devices', store.lostSecrets.join(', '));
     store.onError = (msg) => { log('store error', msg); broadcast('app:error', msg); };
     pool = new DriverPool(store);
     streams = new StreamManager(() => store.getSettings());
@@ -182,7 +203,7 @@ if (!gotLock && !SMOKE && !E2E) {
         const msg = typeof e === 'object' && e.message !== undefined ? e.message : message;
         if (lvl === 'error' || lvl === 3 || lvl === 'warning' || lvl === 2) log('renderer:', msg);
       });
-      win.webContents.once('did-finish-load', () => setTimeout(() => e2e.run(ctx, win, app).catch((err) => { log('E2E crashed', err.message); app.exit(1); }), 1500));
+      win.webContents.once('did-finish-load', () => setTimeout(() => e2e.run(ctx, win, app).catch((err) => { log('E2E crashed', err.message); ctx.shutdownAll(); app.exit(1); }), 1500));
     }
     if (SMOKE) {
       const errors = [];
@@ -199,6 +220,7 @@ if (!gotLock && !SMOKE && !E2E) {
         try { const hk = require('./hiksdk'); if (hk.available()) hk.ensureLoaded(); log('SMOKE hiksdk', JSON.stringify(hk.status())); } catch (e) { log('SMOKE hiksdk error', e.message); }
         log('SMOKE console errors', errors.length ? errors : 'none');
         app.isQuitting = true;
+        ctx.shutdownAll();
         app.exit(errors.length || (typeof result === 'string' && /error/i.test(result)) ? 1 : 0);
       }, 6000);
     }
@@ -207,5 +229,14 @@ if (!gotLock && !SMOKE && !E2E) {
   app.on('activate', () => { if (windows.size === 0) createWindow(); });
   app.on('window-all-closed', () => { if (process.platform !== 'darwin' && !(tray && store.getSettings().minimizeToTray)) app.quit(); });
   app.on('before-quit', () => { app.isQuitting = true; });
-  app.on('will-quit', () => { try { ctx.updater && ctx.updater.stop(); hub && hub.stop(); streams && streams.shutdown(); require('./hiksdk').shutdown(); store && store.flush(); } catch (_) {} });
+  // Also run before app.exit() (smoke / e2e): exiting with the Hikvision SDK still initialized crashed the packaged
+  // process during teardown (WER dumps in %LOCALAPPDATA%\CrashDumps); app.exit() does not emit will-quit.
+  function shutdownAll() {
+    // config first: nothing below may prevent it from reaching the disk
+    for (const step of [() => store && store.flush(), () => ctx.updater && ctx.updater.stop(), () => hub && hub.stop(), () => streams && streams.shutdown(), () => require('./hiksdk').shutdown()]) {
+      try { step(); } catch (_) {}
+    }
+  }
+  ctx.shutdownAll = shutdownAll;
+  app.on('will-quit', shutdownAll);
 }

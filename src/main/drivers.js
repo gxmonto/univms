@@ -16,6 +16,12 @@ class DriverPool {
   get(deviceId) {
     const d = this.store.getDeviceWithSecret(deviceId);
     if (!d) throw new Error(`Unknown device ${deviceId}`);
+    if (d.secretLost) {
+      // Treated like a credentials failure: no automatic logins until the device is edited (see EventHub.authBlocked)
+      const e = new Error(`The saved password of ${d.name || d.host} could not be read (${d.secretError}). Edit the device and enter the password again.`);
+      e.authFailure = true; e.secretLost = true;
+      throw e;
+    }
     const key = `${d.id}|${d.updatedAt}`;
     const hit = this.cache.get(d.id);
     if (hit && hit.key === key) return hit.driver;

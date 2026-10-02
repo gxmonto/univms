@@ -6,6 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { PlainBox, SecretError } = require('./secrets');
 
 const DEFAULTS = {
   version: 1,
@@ -41,12 +42,31 @@ const DEFAULTS = {
 };
 
 class Store {
-  constructor(file, safeStorage) {
+  /**
+   * @param {string} file config path
+   * @param {object|null} secrets SecretBox (see secrets.js); null = base64 fallback (unit tests)
+   */
+  constructor(file, secrets) {
     this.file = file;
-    this.safeStorage = safeStorage;
+    this.secrets = secrets && typeof secrets.encrypt === 'function' ? secrets : new PlainBox();
     this.data = JSON.parse(JSON.stringify(DEFAULTS));
     this._saveTimer = null;
     this.load();
+    this.migrateSecrets();
+  }
+
+  /** Re-encrypt passwords stored in an older format while they still decrypt; lost ones stay as they are and are
+   *  reported through getDeviceWithSecret().secretLost so the user re-enters them. */
+  migrateSecrets() {
+    let changed = 0;
+    this.lostSecrets = [];
+    for (const d of this.data.devices) {
+      if (!d.passwordEnc || this.secrets.isCurrent(d.passwordEnc)) continue;
+      try { d.passwordEnc = this.secrets.encrypt(this.secrets.decrypt(d.passwordEnc)); changed++; }
+      catch (e) { this.lostSecrets.push(d.id); }
+    }
+    if (changed) this.save();
+    return { migrated: changed, lost: this.lostSecrets.length };
   }
 
   load() {
@@ -95,26 +115,12 @@ class Store {
   }
 
   // ---- secrets ----
-  encrypt(plain) {
-    if (!plain) return '';
-    try {
-      if (this.safeStorage && this.safeStorage.isEncryptionAvailable()) {
-        return 'enc:' + this.safeStorage.encryptString(String(plain)).toString('base64');
-      }
-    } catch (_) {}
-    return 'b64:' + Buffer.from(String(plain), 'utf8').toString('base64');
-  }
+  encrypt(plain) { return this.secrets.encrypt(plain); }
 
+  /** Returns '' when the value cannot be decrypted (see getDeviceWithSecret for the flag). */
   decrypt(stored) {
-    if (!stored) return '';
-    try {
-      if (stored.startsWith('enc:')) return this.safeStorage.decryptString(Buffer.from(stored.slice(4), 'base64'));
-      if (stored.startsWith('b64:')) return Buffer.from(stored.slice(4), 'base64').toString('utf8');
-    } catch (e) {
-      console.error('[store] decrypt failed:', e.message);
-      return '';
-    }
-    return stored; // legacy plain
+    try { return this.secrets.decrypt(stored); }
+    catch (e) { return ''; }
   }
 
   // ---- devices ----
@@ -131,7 +137,11 @@ class Store {
   getDeviceWithSecret(id) {
     const d = this.getDevice(id);
     if (!d) return null;
-    return { ...d, password: this.decrypt(d.passwordEnc) };
+    try { return { ...d, password: this.secrets.decrypt(d.passwordEnc), secretLost: false }; }
+    catch (e) {
+      // never log in with an empty password instead (Hikvision counts it as a failed attempt and locks the account)
+      return { ...d, password: '', secretLost: true, secretError: e.message };
+    }
   }
   upsertDevice(input) {
     const existing = input.id ? this.getDevice(input.id) : null;
@@ -248,4 +258,4 @@ class Store {
   }
 }
 
-module.exports = { Store, DEFAULTS };
+module.exports = { Store, DEFAULTS, SecretError };

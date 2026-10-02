@@ -188,7 +188,7 @@ function renderRows() {
       el('td', {}, d.name), el('td', {}, typeLabel(d.type) + (d.transport === 'sdk' ? ' • SDK' : '')), el('td', {}, `${d.https ? 'https://' : ''}${d.host}:${d.port}`),
       el('td', {}, (d.info && (d.info.model || d.info.name)) || '-'), el('td', {}, (d.info && d.info.serial) || '-'), el('td', {}, (d.info && d.info.firmware) || '-'),
       el('td', {}, cams.length ? `${online}/${cams.length}` : '-'), el('td', {}, d.lastRefresh ? fmtTime(d.lastRefresh) : '-'),
-      el('td', { title: st.error || '' }, st.authFailed ? el('span', { class: 'err' }, 'Login rejected — edit the device to retry') : st.online === false ? el('span', { class: 'err' }, 'Offline' + (st.error ? ': ' + st.error.slice(0, 60) : '')) : st.online ? el('span', { class: 'ok' }, 'Online') : el('span', { class: 'dim' }, 'Checking…'))));
+      el('td', { title: st.error || '' }, st.authFailed ? el('span', { class: 'err' }, st.secretLost ? 'Saved password unreadable — edit the device and enter it again' : 'Login rejected — edit the device to retry') : st.online === false ? el('span', { class: 'err' }, 'Offline' + (st.error ? ': ' + st.error.slice(0, 60) : '')) : st.online ? el('span', { class: 'ok' }, 'Online') : el('span', { class: 'dim' }, 'Checking…'))));
   }
   if (!state.devices.length) tbody.append(el('tr', {}, el('td', { colspan: 10, class: 'empty' }, 'No devices. Click "Add device" or "Online devices" to begin.')));
 }

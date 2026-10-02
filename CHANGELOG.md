@@ -5,6 +5,9 @@
 - Hik-Connect / Guarding Vision dialog (device right-click or Remote config): service status, enable/disable, set the verification code, and the iVMS-4200-style **password-protected device QR** (address, port, user and password in Hikvision's encrypted format) that Hik-Connect / Guarding Vision import after asking for the QR password, with PNG export and print.
 - SDK connection: live view and playback now read Hikvision's private PS stream from the RealPlay/playback callbacks (the "standard stream" callback delivers RTP packets, which ffmpeg could not parse); two-way audio over the SDK sends G.711 in 160-byte frames and plays the PCM the SDK returns.
 - Stream failures are written to the main log (ffmpeg exit code, bytes in/out, last error lines).
+- Fixed: saved device passwords became unreadable after a restart (the Windows encryption key Electron keeps in `Local State` was lost when the app was killed), so the app logged in with empty passwords and Hikvision locked the account. Passwords are now encrypted with the app's own key, protected by Windows DPAPI; a device whose saved password cannot be read any more is shown as "Saved password unreadable" and is never logged into until it is edited.
+- Fixed: copies started by double-click wrote neither the log nor the configuration (console output has nowhere to go in a windowed process); the log file is written first and console errors are ignored.
+- A crashed renderer (blank window) is reloaded automatically; the configuration is flushed first when the app quits.
 
 ## 1.0.0 - 2026-10-02
 

@@ -128,6 +128,7 @@ function register(ctx) {
   h('devices:test', async (_e, cfg) => {
     if (cfg.id && (!cfg.password || cfg.password === '')) {
       const stored = store.getDeviceWithSecret(cfg.id);
+      if (stored && stored.secretLost) throw new Error('The saved password could not be read any more. Enter the password to test the connection.');
       if (stored) cfg = { ...cfg, password: stored.password };
     }
     const drv = pool.make(cfg);

@@ -63,6 +63,9 @@ async function run(ctx, win, app) {
     for (let i = 0; i < 30 && !cams.length; i++) { await sleep(500); cams = await js(`window.vms.invoke('cameras:list')`); }
     results.cameras = cams.length;
     if (!cams.length) throw new Error('no cameras enumerated');
+    // persistence: the device must be on disk shortly after being added
+    await sleep(700);
+    try { const onDisk = JSON.parse(fs.readFileSync(ctx.store.file, 'utf8')); results.persistedDevices = (onDisk.devices || []).length; results.configFile = ctx.store.file; } catch (e) { results.persistError = e.message; }
     await js(`window.__navigate('devices')`); await sleep(800); await shot('02-devices');
     await js(`window.__navigate('live', { cameraId: ${JSON.stringify(cams[0].id)} })`);
     // wait for decoded frames
@@ -152,9 +155,10 @@ async function run(ctx, win, app) {
   }
   log('E2E RESULTS', results);
   fs.writeFileSync(path.join(outDir, 'results.json'), JSON.stringify(results, null, 2));
-  const pass = results.deviceAdded && results.cameras > 0 && results.livePlaying && results.mapImageWidth > 0 && results.mapHotspots === 1 && results.events > 0 && results.treeDraggable === 'true' && results.dropAssigned === true && results.talkBytesAtDevice > 0 && results.talkClosed === 1 && Array.isArray(results.rulesTabs) && results.rulesTabs.length === 3 && results.navCollapsedNarrow === true && results.closeVisibleNarrow === true && results.navExpandedWide === true && results.hikConnect && results.hikConnect.qr && results.hikConnect.serial && !results.error;
+  const pass = results.deviceAdded && results.cameras > 0 && results.livePlaying && results.mapImageWidth > 0 && results.mapHotspots === 1 && results.events > 0 && results.treeDraggable === 'true' && results.dropAssigned === true && results.talkBytesAtDevice > 0 && results.talkClosed === 1 && Array.isArray(results.rulesTabs) && results.rulesTabs.length === 3 && results.navCollapsedNarrow === true && results.closeVisibleNarrow === true && results.navExpandedWide === true && results.hikConnect && results.hikConnect.qr && results.hikConnect.serial && results.persistedDevices === 1 && !results.error;
   log(pass ? 'E2E PASS' : 'E2E FAIL');
   app.isQuitting = true;
+  if (ctx.shutdownAll) ctx.shutdownAll();
   app.exit(pass ? 0 : 1);
 }
 

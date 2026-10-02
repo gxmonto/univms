@@ -85,7 +85,7 @@ class EventHub extends EventEmitter {
   }
   noteFailure(deviceId, e) {
     if (e && e.authFailure) {
-      this.setStatus(deviceId, { online: false, error: e.message, authFailed: true, authFailedAt: Date.now() });
+      this.setStatus(deviceId, { online: false, error: e.message, authFailed: true, authFailedAt: Date.now(), secretLost: !!e.secretLost });
       this.unsubscribe(deviceId);
       return true;
     }
