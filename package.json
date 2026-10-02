@@ -1,7 +1,7 @@
 {
   "name": "univms",
   "productName": "UniVMS",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "description": "Multi-vendor video management client for Hikvision NVRs/DVRs and DW Spectrum servers: live view grids, playback, PTZ, events, e-maps and device maintenance.",
   "main": "src/main/main.js",
   "author": "SightWatch <mike@sightwatch.com>",
