@@ -21,7 +21,7 @@ export async function mount(container) {
   const ffInput = el('input', { type: 'text', value: s.ffmpegPath || '', placeholder: 'auto-detect (bundled, vendor/, or PATH)', onChange: () => save({ ffmpegPath: ffInput.value }) });
 
   const alarmTypes = new Set(s.alarmTypes || []);
-  const alarmGrid = el('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '4px 12px' } }, ...ALARM_TYPES.map((t) => el('label', { class: 'check small' }, el('input', { type: 'checkbox', checked: alarmTypes.has(t), onChange: (e) => { e.target.checked ? alarmTypes.add(t) : alarmTypes.delete(t); save({ alarmTypes: [...alarmTypes] }); } }), `${typeLabel(t)} (${t})`)));
+  const alarmGrid = el('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '4px 12px' } }, ...ALARM_TYPES.map((t) => el('label', { class: 'check small' }, el('input', { type: 'checkbox', checked: alarmTypes.has(t), onChange: (e) => { e.target.checked ? alarmTypes.add(t) : alarmTypes.delete(t); save({ alarmTypes: [...alarmTypes] }); } }), `${typeLabel(t)} (${t})`)));
 
   // users
   const usersBox = el('div');

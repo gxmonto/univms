@@ -86,7 +86,9 @@ body.fullscreen .win-controls { display: none; }
 .hidden { display: none !important; }
 .ok { color: var(--ok); } .warn { color: var(--warn); } .err { color: var(--err); }
 .card { background: var(--bg-2); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 12px; }
+.card { min-width: 0; overflow-wrap: anywhere; }
+.card .kv dd { white-space: normal; }
 h2 { font-size: 16px; margin: 0 0 10px; font-weight: 600; }
 h3 { font-size: 13px; margin: 14px 0 6px; color: var(--text-2); text-transform: uppercase; letter-spacing: .4px; font-weight: 600; }
 h3:first-child { margin-top: 0; }
