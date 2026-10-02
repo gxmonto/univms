@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.2.0 - 2026-10-02
+
 - Two-way audio: talk through Hikvision cameras / NVR speakers from a live tile (microphone button), with device audio played back.
 - Event rules editor for Hikvision channels: motion-detection grid, line-crossing lines and intrusion regions drawn over a snapshot and written back to the device (camera right-click → Event rules).
 - Fisheye dewarping (WebGL): 360° panorama or virtual PTZ per tile, with per-camera center/radius/mount calibration; snapshots capture the dewarped view.
@@ -9,7 +11,6 @@
 - Fixed the UI overflowing the window (window controls and right-hand tiles pushed off-screen); module bar uses shorter names and collapses into a single menu button when the window is too narrow; the window is sized to the screen's work area and its position/size are remembered.
 - Shorter, per-vendor port labels in the device dialog; a real tooltip on the empty-tile info icon.
 - Fixed the release script mangling CHANGELOG.md on Windows (CRLF line endings).
-
 ## 1.1.0 - 2026-10-02
 
 - Automatic update checks against GitHub Releases with a "new version" dialog that shows the release notes, download progress and a restart prompt; the portable exe and Linux packages get a direct download link. New *Updates* section in System Config (policy, server, token, check now, release notes) and a "What's new" screen after upgrading.
