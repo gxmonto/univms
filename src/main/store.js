@@ -68,10 +68,30 @@ class Store {
 
   flush() {
     clearTimeout(this._saveTimer);
-    fs.mkdirSync(path.dirname(this.file), { recursive: true });
-    const tmp = this.file + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(this.data, null, 2));
-    fs.renameSync(tmp, this.file);
+    let json;
+    try { json = JSON.stringify(this.data, null, 2); }
+    catch (e) { this.lastError = 'Configuration could not be serialized: ' + e.message; this.onError && this.onError(this.lastError); return false; }
+    try {
+      fs.mkdirSync(path.dirname(this.file), { recursive: true });
+      const tmp = this.file + '.tmp';
+      fs.writeFileSync(tmp, json);
+      try { fs.renameSync(tmp, this.file); }
+      catch (e) {
+        // Windows: rename can fail while another process (AV scanner, editor) holds the file; write directly instead
+        fs.writeFileSync(this.file, json);
+        try { fs.unlinkSync(tmp); } catch (_) {}
+      }
+      this.lastError = null;
+      this.lastFlush = Date.now();
+      return true;
+    } catch (e) {
+      this.lastError = `Configuration could not be saved to ${this.file}: ${e.message}`;
+      this.onError && this.onError(this.lastError);
+      // retry shortly; keep the data in memory
+      clearTimeout(this._saveTimer);
+      this._saveTimer = setTimeout(() => this.flush(), 5000);
+      return false;
+    }
   }
 
   // ---- secrets ----

@@ -43,6 +43,10 @@ Version is `1.X.Y`.
 
 ## Gotchas learned
 
+- **Hikvision locks the account after a few failed logins** (ISAPI `userCheck` returns 401 with `lockStatus lock` and `unlockTime`; SDK code 153). Background retries (health check every 60 s, alarm resubscribe backoff) turned one bad login into a permanent lock in 1.3.0. Rule now: after any auth failure (`HttpError.authFailure`, `SdkError.authFailure`) the hub blocks automatic logins to that device until it is edited (`status.authFailed`, `authBlocked()`), and the SDK does a TCP connect test before sending credentials. Remote sites often forward only HTTP (e.g. `:9000`) and RTSP `:554`, not the server port 8000 → SDK mode cannot work there; use ISAPI.
+- Switching a device to SDK must force port 8000 (the dialog now does); the first field test sent SDK logins to the HTTP port 9000.
+- Config saves failed silently on the user's installed 1.3.0 (file untouched while devices were added) — cause not found (folder writable, no lock). `store.flush()` now catches errors, falls back to a direct write, retries and toasts; main log persists to `userData/logs/main.log`; Settings → About shows the last save time. Check that log first next time.
+
 - `el('div', { draggable: true })` must emit `draggable="true"`; an empty attribute disables dragging (this broke all drag & drop in 1.0.0).
 - Node ≥16: a server request's `'close'` fires when the body is consumed — use `res.on('close')` for connection lifetime (mock event stream bug).
 - ffmpeg cannot serve RTSP for players (`-rtsp_flags listen` only accepts pushes); use mediamtx for tests.
@@ -70,6 +74,8 @@ Version is `1.X.Y`.
 - Make the GitHub repo public or add a token in the app so the update check works.
 
 ## Session log
+
+- **2026-10-02 — 1.3.1**: lockout protection after credential failures, SDK TCP pre-check and forced port 8000, robust config saving with error toast, persistent main log, config-save status in Settings.
 
 - **2026-10-02 — 1.3.0**: Hikvision SDK connection type (port 8000) covering live, playback, two-way audio, alarms, snapshots and ISAPI pass-through; SDK fetched at build time and cached in CI. Awaiting validation on a real NVR.
 

@@ -20,6 +20,6 @@ test('Hikvision SDK loads, initializes and reports errors', { skip: !hik.availab
   assert.strictEqual(koffi.sizeof(T.NET_DVR_DEVICEINFO_V30), 80);
   // login to a closed port fails fast with a readable SDK error
   const s = hik.HikSdkSession.get({ id: 't', host: '127.0.0.1', port: 1, username: 'admin', password: 'x' });
-  await assert.rejects(() => s.login(), /SDK login failed/);
+  await assert.rejects(() => s.login(), /not reachable|SDK login failed/);
   s.logout();
 });

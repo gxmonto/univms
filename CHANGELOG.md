@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Lockout protection: after a device rejects the credentials (ISAPI 401 or SDK login error), UniVMS stops all automatic logins to it until the device is edited, so Hikvision's "illegal login" lock is no longer triggered by background retries. The status column says "Login rejected — edit the device to retry" and 401 messages explain the remaining lock time.
+- SDK connection: a plain TCP check runs before login so credentials are never sent to a closed or wrong port (e.g. an HTTP port); switching a device to SDK now always sets the server port 8000.
+- Configuration saves report failures (toast + log) and retry instead of failing silently.
+
 ## 1.3.0 - 2026-10-02
 
 - Hikvision SDK connection type (server port 8000, exactly like iVMS-4200): login, live view and playback (SDK stream piped into ffmpeg), two-way audio with the SDK's own voice-channel numbering, alarms, snapshots and all ISAPI configuration tunnelled through port 8000. Choose "Connection: Hikvision SDK / server port" in the device dialog. The free Device Network SDK is downloaded at build time (`scripts/fetch-hiksdk.js`) and bundled as `resources/hiksdk`.

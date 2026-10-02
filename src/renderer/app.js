@@ -172,6 +172,7 @@ async function boot() {
   on('events:acked', () => updateBadge());
   on('events:cleared', () => updateBadge());
   on('app:navigate', (v) => navigate(v));
+  on('app:error', (msg) => toast(msg, 'err', 12000));
   on('record:end', (r) => { if (r.code === 0 || r.code === 255) toast(`Recording saved: ${r.file}`, 'ok', 5000); else toast(`Recording ended (${r.code}) ${r.error || ''}`, 'warn', 6000); });
   on('export:end', (r) => { if (r.code === 0) toast(`Export complete: ${r.file}`, 'ok', 8000); else toast(`Export failed: ${r.error || r.code}`, 'err', 8000); });
   updateBadge();

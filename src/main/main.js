@@ -27,12 +27,21 @@ if (E2E) {
   app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
 }
 const logBuffer = [];
+let logFile = null;
 function log(...args) {
-  const line = `[${new Date().toISOString()}] ${args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')}`;
+  const line = `[${new Date().toISOString()}] ${args.map((a) => (typeof a === 'string' ? a : (() => { try { return JSON.stringify(a); } catch (_) { return String(a); } })())).join(' ')}`;
   logBuffer.push(line);
   if (logBuffer.length > 2000) logBuffer.splice(0, logBuffer.length - 2000);
   console.log(line);
+  if (logFile) {
+    try {
+      if (fs.existsSync(logFile) && fs.statSync(logFile).size > 2 * 1024 * 1024) fs.renameSync(logFile, logFile.replace(/\.log$/, '.1.log'));
+      fs.appendFileSync(logFile, line + '\n');
+    } catch (_) {}
+  }
 }
+process.on('uncaughtException', (e) => log('UNCAUGHT', e && e.stack ? e.stack : String(e)));
+process.on('unhandledRejection', (e) => log('UNHANDLED REJECTION', e && e.stack ? e.stack : String(e)));
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock && !SMOKE && !E2E) {
@@ -134,7 +143,10 @@ if (!gotLock && !SMOKE && !E2E) {
 
   app.whenReady().then(async () => {
     const userData = app.getPath('userData');
+    try { fs.mkdirSync(path.join(userData, 'logs'), { recursive: true }); logFile = path.join(userData, 'logs', 'main.log'); } catch (_) {}
     store = new Store(path.join(userData, 'univms-config.json'), safeStorage);
+    log('config file', store.file);
+    store.onError = (msg) => { log('store error', msg); broadcast('app:error', msg); };
     pool = new DriverPool(store);
     streams = new StreamManager(() => store.getSettings());
     hub = new EventHub(store, pool, broadcast);

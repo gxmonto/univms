@@ -77,15 +77,31 @@ class EventHub extends EventEmitter {
   }
   getStatus() { return Object.fromEntries(this.status); }
 
+  /** After a credentials error we stop all automatic logins to that device until it is edited (Hikvision locks accounts after a few failures). */
+  authBlocked(deviceId) {
+    const st = this.status.get(deviceId);
+    const dev = this.store.getDevice(deviceId);
+    return !!(st && st.authFailed && dev && st.authFailedAt >= (dev.updatedAt || 0));
+  }
+  noteFailure(deviceId, e) {
+    if (e && e.authFailure) {
+      this.setStatus(deviceId, { online: false, error: e.message, authFailed: true, authFailedAt: Date.now() });
+      this.unsubscribe(deviceId);
+      return true;
+    }
+    return false;
+  }
+
   async healthCheck() {
     for (const d of this.store.list('devices')) {
+      if (this.authBlocked(d.id)) continue;
       try {
         const drv = this.pool.get(d.id);
         const info = await drv.probe();
-        this.setStatus(d.id, { online: true, error: null, info });
+        this.setStatus(d.id, { online: true, error: null, info, authFailed: false });
         if (!this.subs.has(d.id)) this.subscribe(d.id);
       } catch (e) {
-        this.setStatus(d.id, { online: false, error: e.message });
+        if (!this.noteFailure(d.id, e)) this.setStatus(d.id, { online: false, error: e.message });
       }
     }
   }
@@ -93,7 +109,7 @@ class EventHub extends EventEmitter {
   subscribe(deviceId) {
     this.unsubscribe(deviceId);
     const dev = this.store.getDevice(deviceId);
-    if (!dev || dev.eventsDisabled) return;
+    if (!dev || dev.eventsDisabled || this.authBlocked(deviceId)) return;
     const sub = { stopped: false, close: null, timer: null, backoff: 2000 };
     this.subs.set(deviceId, sub);
     if (dev.type === 'hikvision') this._hikLoop(deviceId, sub);
@@ -128,6 +144,7 @@ class EventHub extends EventEmitter {
       sub.backoff = 2000;
     } catch (e) {
       if (sub.stopped) return;
+      if (this.noteFailure(deviceId, e)) return; // credentials rejected: do not retry automatically
       sub.timer = setTimeout(() => this._hikLoop(deviceId, sub), sub.backoff);
       sub.backoff = Math.min(sub.backoff * 2, 60000);
     }

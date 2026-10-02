@@ -137,6 +137,7 @@ function register(ctx) {
   });
   h('devices:save', async (_e, cfg) => {
     const dev = store.upsertDevice(cfg);
+    hub.setStatus(dev.id, { authFailed: false, error: null });
     pool.drop(dev.id);
     hub.subscribe(dev.id);
     refreshDevice(dev.id).catch(() => {});
@@ -154,7 +155,9 @@ function register(ctx) {
   });
   async function refreshDevice(id) {
     const drv = pool.get(id);
-    const info = await drv.probe();
+    let info;
+    try { info = await drv.probe(); }
+    catch (e) { if (!hub.noteFailure(id, e)) hub.setStatus(id, { online: false, error: e.message }); throw e; }
     const cams = await drv.cameras();
     hub.setCameras(id, cams);
     store.patchDevice(id, { info, cameras: cams, lastRefresh: Date.now() });
@@ -451,6 +454,8 @@ function register(ctx) {
 
   // ---------- app log ----------
   h('log:recent', () => ctx.logBuffer.slice(-500));
+  h('log:openFolder', () => shell.openPath(path.join(app.getPath('userData'), 'logs')));
+  h('config:status', () => ({ file: store.file, lastFlush: store.lastFlush || null, lastError: store.lastError || null }));
 }
 
 module.exports = { register };

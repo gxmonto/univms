@@ -132,7 +132,19 @@ function lastError() {
   return `${msg || 'SDK error'} (code ${code})`;
 }
 
-class SdkError extends Error { constructor(msg, code) { super(msg); this.sdkCode = code; } }
+class SdkError extends Error { constructor(msg, code) { super(msg); this.sdkCode = code; this.authFailure = [1, 2, 47, 153].includes(Number(code)); } }
+
+/** Plain TCP connect test so we never send credentials to a closed/wrong port (every rejected login counts towards the device lock). */
+function tcpReachable(host, port, timeoutMs = 4000) {
+  return new Promise((resolve) => {
+    const net = require('net');
+    const sock = net.connect({ host, port });
+    const done = (ok) => { try { sock.destroy(); } catch (_) {} resolve(ok); };
+    sock.setTimeout(timeoutMs, () => done(false));
+    sock.once('connect', () => done(true));
+    sock.once('error', () => done(false));
+  });
+}
 
 /** One logged-in SDK connection per device record (shared by all consumers). */
 class HikSdkSession extends EventEmitter {
@@ -160,6 +172,8 @@ class HikSdkSession extends EventEmitter {
     if (this.loginPromise) return this.loginPromise;
     this.loginPromise = (async () => {
       ensureLoaded();
+      const port = Number(this.cfg.port) || 8000;
+      if (!(await tcpReachable(this.cfg.host, port))) throw new SdkError(`Server port ${port} on ${this.cfg.host} is not reachable. The SDK needs the device's server port (8000 by default); if only the HTTP port is forwarded, use the HTTP/ISAPI connection instead.`, 7);
       const login = { sDeviceAddress: this.cfg.host, byUseTransport: 0, wPort: Number(this.cfg.port) || 8000, sUserName: this.cfg.username || 'admin', sPassword: this.cfg.password || '', cbLoginResult: null, pUser: null, bUseAsynLogin: 0, byProxyType: 0, byUseUTCTime: 0, byLoginMode: 0, byHttps: 0, iProxyID: 0, byVerifyMode: 0, byRes3: new Array(119).fill(0) };
       const out = {};
       // koffi calls are synchronous; run in the event loop as-is (login takes up to the connect timeout)
@@ -337,4 +351,4 @@ function shutdown() {
   if (initialized) { try { F.NET_DVR_Cleanup(); } catch (_) {} initialized = false; }
 }
 
-module.exports = { HikSdkSession, SdkError, available, ensureLoaded, status, shutdown, sdkDir, _types: () => T };
+module.exports = { HikSdkSession, SdkError, available, ensureLoaded, status, shutdown, sdkDir, tcpReachable, _types: () => T };

@@ -136,9 +136,15 @@ async function request(urlStr, options = {}) {
 
 class HttpError extends Error {
   constructor(status, text, url) {
-    super(`HTTP ${status}${text ? ': ' + text.slice(0, 300) : ''}`);
+    const lock = /<lockStatus>\s*lock/i.test(text || '') ? (/<unlockTime>(\d+)<\/unlockTime>/.exec(text || '') || [])[1] : null;
+    const plain = text && !/^\s*</.test(text) ? String(text).slice(0, 160) : '';
+    super(status === 401
+      ? `Login rejected by the device (401${plain ? ': ' + plain : ''})${lock ? ` — account locked for ${Math.ceil(Number(lock) / 60)} more minute(s) after repeated failed logins` : ''}. Check the username and password.`
+      : `HTTP ${status}${text ? ': ' + text.slice(0, 300) : ''}`);
     this.status = status;
     this.url = url;
+    this.authFailure = status === 401 || status === 403;
+    this.lockedSeconds = lock ? Number(lock) : null;
   }
 }
 
