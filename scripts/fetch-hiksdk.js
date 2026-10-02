@@ -78,7 +78,16 @@ function githubDownload(u, dest, token, redirects = 0) {
 }
 async function fromGithubAsset() {
   const token = process.env.ASSETS_TOKEN || process.env.GH_TOKEN || process.env.GITHUB_TOKEN || ghCliToken() || '';
-  const rel = await githubJson(`https://api.github.com/repos/${ASSET_REPO}/releases/tags/${ASSET_TAG}`, token);
+  let rel;
+  try { rel = await githubJson(`https://api.github.com/repos/${ASSET_REPO}/releases/tags/${ASSET_TAG}`, token); }
+  catch (e) {
+    // diagnose without printing the token: who is it, can it see the repo at all?
+    const src = process.env.ASSETS_TOKEN ? 'ASSETS_TOKEN' : process.env.GH_TOKEN ? 'GH_TOKEN' : process.env.GITHUB_TOKEN ? 'GITHUB_TOKEN' : token ? 'gh auth token' : 'none';
+    let who = 'unknown', repoVisible = false;
+    try { who = (await githubJson('https://api.github.com/user', token)).login; } catch (_) {}
+    try { await githubJson(`https://api.github.com/repos/${ASSET_REPO}`, token); repoVisible = true; } catch (_) {}
+    throw new Error(`${e.message} — token source: ${src}, token user: ${who}, can see ${ASSET_REPO}: ${repoVisible ? 'yes (release/tag missing?)' : 'NO — give the token "Contents: read" on that repository'}`);
+  }
   const name = `hiksdk-${platform}-${arch}.zip`;
   const asset = (rel.assets || []).find((a) => a.name === name);
   if (!asset) throw new Error(`asset ${name} not found in release ${ASSET_TAG}`);
