@@ -6,6 +6,7 @@ import { createPtzPanel } from '../ptz.js';
 import { TalkSession } from '../talk.js';
 import { Dewarper, DEFAULT_DEWARP } from '../dewarp.js';
 import { openRulesEditor } from '../rules.js';
+import { setStreamKey } from '../streamkey.js';
 
 export const LAYOUTS = {
   '1': { n: 1, cols: 1, rows: 1 },
@@ -41,6 +42,7 @@ function createTile(i) {
   const label = el('span', { class: 'lbl' });
   nameEl.append(label, recEl, statusEl);
   const msg = el('div', { class: 'msg hidden' });
+  msg.addEventListener('click', (e) => { if (!tile.encrypted) return; e.stopPropagation(); promptStreamKey(tile); });
   const spinner = el('div', { class: 'spinner hidden' });
   const hint = el('div', { class: 'empty-hint' }, svg('camera'));
   const hintInfo = el('div', { class: 'hint-info', dataset: { tip: 'Drag a camera here, or double-click one in the tree' } }, 'i');
@@ -165,9 +167,18 @@ function toggleZoom(tile) {
 function setTileStatus(tile, status, detail) {
   tile.statusEl.textContent = (tile.talk ? 'TALKING • ' : '') + (status === 'playing' ? detail : status === 'idle' ? '' : status);
   tile.spinner.classList.toggle('hidden', !['connecting', 'buffering', 'reconnecting'].includes(status));
-  tile.msg.classList.toggle('hidden', !(status === 'error' || status === 'reconnecting'));
-  tile.msg.classList.toggle('err', status === 'error');
-  tile.msg.textContent = status === 'error' ? `Error: ${detail}` : status === 'reconnecting' ? `Reconnecting… ${detail}` : '';
+  tile.msg.classList.toggle('hidden', !(status === 'error' || status === 'reconnecting' || status === 'encrypted'));
+  tile.msg.classList.toggle('err', status === 'error' || status === 'encrypted');
+  tile.encrypted = status === 'encrypted';
+  tile.msg.classList.toggle('click', tile.encrypted);
+  tile.msg.textContent = status === 'error' ? `Error: ${detail}` : status === 'reconnecting' ? `Reconnecting… ${detail}` : status === 'encrypted' ? `${detail} — click to enter the stream key` : '';
+}
+
+async function promptStreamKey(tile) {
+  const cam = tile.cameraId ? cameraById(tile.cameraId) : null;
+  if (!cam) return;
+  const ok = await setStreamKey(cam.deviceId, { reason: `${cam.name}: the device sends an encrypted stream (Stream Encryption is enabled under Platform Access / Hik-Connect).` });
+  if (ok && tile.player) { tile.player.retry = 0; tile.player.restart(); }
 }
 
 export function assign(i, cameraId, stream) {

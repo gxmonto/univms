@@ -128,8 +128,8 @@ class Store {
     return this.data.devices.map((d) => this.publicDevice(d));
   }
   publicDevice(d) {
-    const { passwordEnc, ...pub } = d;
-    return { ...pub, hasPassword: !!passwordEnc };
+    const { passwordEnc, streamKeyEnc, ...pub } = d;
+    return { ...pub, hasPassword: !!passwordEnc, hasStreamKey: !!streamKeyEnc };
   }
   getDevice(id) {
     return this.data.devices.find((d) => d.id === id) || null;
@@ -137,18 +137,22 @@ class Store {
   getDeviceWithSecret(id) {
     const d = this.getDevice(id);
     if (!d) return null;
-    try { return { ...d, password: this.secrets.decrypt(d.passwordEnc), secretLost: false }; }
+    const streamKey = this.decrypt(d.streamKeyEnc) || '';
+    try { return { ...d, password: this.secrets.decrypt(d.passwordEnc), streamKey, secretLost: false }; }
     catch (e) {
       // never log in with an empty password instead (Hikvision counts it as a failed attempt and locks the account)
-      return { ...d, password: '', secretLost: true, secretError: e.message };
+      return { ...d, password: '', streamKey, secretLost: true, secretError: e.message };
     }
   }
   upsertDevice(input) {
     const existing = input.id ? this.getDevice(input.id) : null;
     const dev = existing ? { ...existing } : { id: 'dev_' + crypto.randomBytes(6).toString('hex'), createdAt: Date.now() };
-    const { password, ...rest } = input;
+    const { password, streamKey, ...rest } = input;
     Object.assign(dev, rest);
     if (password !== undefined && password !== null && password !== '') dev.passwordEnc = this.encrypt(password);
+    // stream encryption key (Hikvision verification code): '' / undefined keep, null removes
+    if (streamKey === null) delete dev.streamKeyEnc;
+    else if (streamKey !== undefined && streamKey !== '') dev.streamKeyEnc = this.encrypt(streamKey);
     dev.updatedAt = Date.now();
     if (existing) {
       const i = this.data.devices.findIndex((d) => d.id === dev.id);
@@ -218,7 +222,7 @@ class Store {
   exportConfig(password) {
     const payload = {
       exportedAt: new Date().toISOString(),
-      devices: this.data.devices.map((d) => ({ ...d, passwordEnc: undefined, password: this.decrypt(d.passwordEnc) })),
+      devices: this.data.devices.map((d) => ({ ...d, passwordEnc: undefined, streamKeyEnc: undefined, password: this.decrypt(d.passwordEnc), streamKey: this.decrypt(d.streamKeyEnc) || undefined })),
       views: this.data.views, groups: this.data.groups, maps: this.data.maps.map((m) => ({ ...m, image: undefined })),
       cameraAliases: this.data.cameraAliases, settings: this.data.settings,
     };
@@ -245,10 +249,10 @@ class Store {
     }
     if (!merge) { this.data.devices = []; this.data.views = []; this.data.groups = []; this.data.maps = []; }
     for (const d of payload.devices || []) {
-      const { password: pw, ...rest } = d;
+      const { password: pw, streamKey: sk, ...rest } = d;
       const exists = this.getDevice(rest.id);
-      if (exists) Object.assign(exists, rest, { passwordEnc: pw ? this.encrypt(pw) : exists.passwordEnc });
-      else this.data.devices.push({ ...rest, passwordEnc: this.encrypt(pw || '') });
+      if (exists) Object.assign(exists, rest, { passwordEnc: pw ? this.encrypt(pw) : exists.passwordEnc, streamKeyEnc: sk ? this.encrypt(sk) : exists.streamKeyEnc });
+      else this.data.devices.push({ ...rest, passwordEnc: this.encrypt(pw || ''), ...(sk ? { streamKeyEnc: this.encrypt(sk) } : {}) });
     }
     for (const coll of ['views', 'groups', 'maps']) for (const it of payload[coll] || []) this.upsert(coll, it);
     this.data.cameraAliases = { ...this.data.cameraAliases, ...(payload.cameraAliases || {}) };

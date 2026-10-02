@@ -106,6 +106,8 @@ function defineTypes() {
   fn('uint32_t NET_DVR_GetLastError()');
   fn('const char *NET_DVR_GetErrorMsg(_Inout_ int32_t *pErrorNo)');
   fn('int NET_DVR_STDXMLConfig(int32_t lUserID, NET_DVR_XML_CONFIG_INPUT *lpInputParam, NET_DVR_XML_CONFIG_OUTPUT *lpOutputParam)');
+  fn('int NET_DVR_SetSDKSecretKey(int32_t lUserID, const uint8_t *sSecretKey)');
+  fn('int NET_DVR_GetDVRConfig(int32_t lUserID, uint32_t dwCommand, int32_t lChannel, _Out_ uint8_t *lpOutBuffer, uint32_t dwOutBufferSize, _Out_ uint32_t *lpBytesReturned)');
   fn('int NET_DVR_CaptureJPEGPicture_NEW(int32_t lUserID, int32_t lChannel, NET_DVR_JPEGPARA *lpJpegPara, _Out_ uint8_t *sJpegPicBuffer, uint32_t dwPicSize, _Out_ uint32_t *lpSizeReturned)');
   fn('int32_t NET_DVR_RealPlay_V40(int32_t lUserID, NET_DVR_PREVIEWINFO *lpPreviewInfo, RealDataCb *cb, void *pUser)');
   fn('int NET_DVR_SetStandardDataCallBack(int32_t lRealHandle, StdDataCb *cb, uint32_t dwUser)');
@@ -247,9 +249,34 @@ class HikSdkSession extends EventEmitter {
     return Buffer.from(buf.subarray(0, ret[0]));
   }
 
+  /** Stream encryption key stored on the device (NET_DVR_GET_AES_KEY = 6113); null when not available or all zero. */
+  async deviceStreamKey() {
+    if (this._aesKey !== undefined) return this._aesKey;
+    await this.login();
+    const buf = Buffer.alloc(80), ret = [0];
+    let key = null;
+    try { if (F.NET_DVR_GetDVRConfig(this.userId, 6113, -1, buf, buf.length, ret)) { const k = buf.subarray(0, 16); if (k.some((b) => b !== 0)) key = Buffer.from(k); } } catch (_) {}
+    this._aesKey = key;
+    return key;
+  }
+  /** Hand the stream key to the SDK (NET_DVR_SetSDKSecretKey, "set before live view"). The PS data we receive may still be
+   *  encrypted — hikstream.js decrypts it — but the SDK's own paths (snapshots, playback) use it. */
+  async setStreamKey(key) {
+    if (!key) { this.streamKey = null; return false; }
+    this.streamKey = Buffer.isBuffer(key) ? Buffer.from(key) : Buffer.from(String(key), 'utf8');
+    await this.login();
+    return this.applyStreamKey();
+  }
+  applyStreamKey() {
+    if (!this.streamKey || this.userId < 0) return false;
+    const k = Buffer.alloc(17); this.streamKey.copy(k, 0, 0, 16);
+    try { return !!F.NET_DVR_SetSDKSecretKey(this.userId, k); } catch (_) { return false; }
+  }
+
   /** Live stream: standard PS data delivered to onData(Buffer). Returns { stop }. */
   async startLive(channel, kind, stream, onData) {
     await this.login();
+    this.applyStreamKey();
     const preview = { lChannel: this.sdkChannel(channel, kind), dwStreamType: stream === 'main' ? 0 : stream === 'third' ? 2 : 1, dwLinkMode: 0, hPlayWnd: null, bBlocked: 0, bPassbackRecord: 0, byPreviewMode: 0, byStreamID: new Array(32).fill(0), byProtoType: 0, byRes1: 0, byVideoCodingType: 0, dwDisplayBufNum: 1, byNPQMode: 0, byRecvMetaData: 0, byDataType: 0, byRes: new Array(213).fill(0) };
     let stopped = false;
     // The RealPlay callback delivers Hikvision's private PS stream: type 1 = 40-byte system header ("IMKH"), type 2 = PS packs

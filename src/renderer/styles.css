@@ -199,6 +199,7 @@ table.grid tr.selected td { background: rgba(47,143,255,.14); }
 .tile .tools .lbl-btn { font-size: 11px; width: auto; padding: 0 7px; font-weight: 600; }
 .tile .msg { position: absolute; inset: auto 0 36px 0; text-align: center; color: var(--text-2); font-size: 12px; pointer-events: none; text-shadow: 0 1px 2px #000; }
 .tile .msg.err { color: #ff8a87; }
+.tile .msg.click { pointer-events: auto; cursor: pointer; text-decoration: underline; }
 .tile .spinner { width: 26px; height: 26px; border: 3px solid rgba(255,255,255,.15); border-top-color: var(--accent); border-radius: 50%; animation: spin .9s linear infinite; position: absolute; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .tile.zoomed video { cursor: move; }

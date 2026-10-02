@@ -313,16 +313,30 @@ function register(ctx) {
   });
 
   // ---------- streaming ----------
-  h('stream:start', (e, opts) => {
-    const { driver, channel, cam } = camInfo(opts.cameraId);
+  h('stream:start', async (e, opts) => {
+    const { driver, channel, cam, dev } = camInfo(opts.cameraId);
+    // Hikvision "stream encryption": key stored with the device (verification code); over the SDK the device can also hand us its key
+    const hik = dev.type === 'hikvision';
+    let streamKey = hik ? (store.getDeviceWithSecret(dev.id) || {}).streamKey || null : null;
     if (driver.usesSdk) {
+      await driver.sdk.login(); // one login attempt here (a rejected password must never be retried by the steps below)
+      if (!streamKey) { try { streamKey = await driver.sdk.deviceStreamKey(); } catch (_) {} }
+      if (streamKey) { try { await driver.sdk.setStreamKey(streamKey); } catch (_) {} }
       // Hikvision SDK (server port 8000): the device pushes a PS stream that ffmpeg remuxes from stdin
       return streams.startPiped(e.sender, { ...opts, cameraName: cam.name }, (write) => opts.kind === 'playback'
         ? driver.sdk.startPlayback(channel, driver.camKind(channel), opts.startMs, opts.endMs, write)
-        : driver.sdk.startLive(channel, driver.camKind(channel), opts.stream || store.getSettings().defaultStream || 'sub', write));
+        : driver.sdk.startLive(channel, driver.camKind(channel), opts.stream || store.getSettings().defaultStream || 'sub', write),
+      { decrypt: { key: streamKey } });
     }
     const url = opts.kind === 'playback' ? driver.playbackUrl(channel, opts.startMs, opts.endMs) : driver.liveUrl(channel, opts.stream || store.getSettings().defaultStream || 'sub');
-    return streams.start(e.sender, { ...opts, url, cameraName: cam.name });
+    return streams.start(e.sender, { ...opts, url, cameraName: cam.name, encryption: hik ? { key: streamKey, probe: true, deviceId: dev.id } : undefined });
+  });
+  h('devices:setStreamKey', (_e, { deviceId, key }) => {
+    const dev = store.upsertDevice({ id: deviceId, streamKey: key ? String(key) : null });
+    pool.drop(deviceId);
+    streams.probeCache.delete(deviceId);
+    broadcast('devices:changed');
+    return dev;
   });
   h('stream:stop', (_e, id) => streams.stop(id));
   h('stream:stats', () => streams.stats());

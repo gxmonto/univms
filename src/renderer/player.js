@@ -226,6 +226,12 @@ export class Player {
 
   onEnd(info) {
     if (this.stopped) return;
+    if (info && info.encrypted) {
+      // Hikvision stream encryption: retrying is pointless until the key is set; the view offers to enter it
+      this.setStatus('encrypted', info.keyError ? 'Stream key rejected by the stream' : 'Stream is encrypted');
+      this.opts.onEncrypted && this.opts.onEncrypted(info);
+      return;
+    }
     const msg = (info && info.error) || (info && info.code ? `ffmpeg exited (${info.code})` : 'stream ended');
     if (this.opts.kind === 'playback' && info && info.code === 0 && info.bytes > 0) {
       this.setStatus('ended', 'end of recording');
