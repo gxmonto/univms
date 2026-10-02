@@ -14,7 +14,10 @@ export async function openHikConnect(dev) {
   // Hik-Connect / Guarding Vision fill both fields from it; without a code the QR carries only the serial.
   const BRANDS = { hik: ['Hik-Connect / Guarding Vision', 'www.hik-connect.com'], ezviz: ['EZVIZ', 'www.ezviz7.com'] };
   const brand = el('select', { onChange: () => renderQr() }, ...Object.entries(BRANDS).map(([k, [label]]) => el('option', { value: k }, label)));
-  const qrText = () => { const c = code.value.trim(); return c ? `${BRANDS[brand.value][1]}${st.serial}${c}` : st.serial; };
+  const qrText = () => { const c = code.value.trim(); return c ? `${BRANDS[brand.value][1]}
+${st.serial}
+${c}
+` : st.serial; };
   const qrNote = el('div', { class: 'dim small' });
   let qrTimer = null;
   const renderQr = async () => {
@@ -44,6 +47,31 @@ export async function openHikConnect(dev) {
     el('dt', {}, 'Model'), el('dd', {}, st.model || '-'));
   const status = el('div', {}, statusList());
 
+  // ---- iVMS-style password-protected device QR (IP/domain import in Hik-Connect / Guarding Vision) ----
+  const qp = el('input', { type: 'password', placeholder: 'required, up to 16 characters', maxlength: 16 });
+  const qhost = el('input', { type: 'text', value: dev.host });
+  const qport = el('input', { type: 'number', min: 1, max: 65535, value: dev.transport === 'sdk' ? dev.port : 8000, title: 'Server port the app will connect to (Hikvision SDK port, 8000 by default)' });
+  const qname = el('input', { type: 'text', value: dev.name });
+  const devQrImg = el('img', { style: { width: '260px', height: '260px', background: '#fff', borderRadius: '8px', padding: '8px', display: 'none' }, alt: 'Device QR' });
+  const devQrInfo = el('div', { class: 'dim small' }, 'Like iVMS-4200 → Generate QR code: the app asks for this password when scanning, then adds the device with its address, port, user and password. Credentials travel inside the QR (Hikvision fixed cipher), so the password is the only protection — share carefully.');
+  let devQrText = '';
+  const devQrActions = el('div', { class: 'row', style: { marginTop: '8px', display: 'none' } },
+    btn('Save PNG…', { cls: 'sm', icon: 'download' }, async () => { try { const f = await api('hikconnect:saveQr', { deviceId: dev.id, text: devQrText }); if (f) toast('Saved ' + f, 'ok'); } catch (e) { toast(e.message, 'err'); } }),
+    btn('Print', { cls: 'sm' }, () => printQr(dev, { serial: `${qhost.value}:${qport.value}`, model: 'Scan in Hik-Connect / Guarding Vision → Add Device → Manual adding → scan QR, then enter the QR password' }, devQrImg.src)));
+  const gen = btn('Generate QR', { cls: 'primary', icon: 'external' }, async () => {
+    if (!qp.value) return toast('Enter the QR password first', 'warn');
+    try {
+      const r = await api('hikconnect:deviceQr', { deviceId: dev.id, password: qp.value, host: qhost.value.trim(), port: Number(qport.value), name: qname.value.trim() });
+      devQrText = r.text; devQrImg.src = r.dataUrl; devQrImg.style.display = 'block'; devQrActions.style.display = 'flex';
+    } catch (e) { toast('QR: ' + e.message, 'err', 6000); }
+  });
+  body.append(el('h3', {}, 'Device QR with password (import by IP/domain, like iVMS-4200)'),
+    el('div', { class: 'row', style: { alignItems: 'flex-start', gap: '24px' } },
+      el('div', { style: { flex: 1 }, class: 'col' },
+        el('div', { class: 'form-grid' }, el('label', { class: 'field' }, 'QR password', qp), el('label', { class: 'field' }, 'Device name in the app', qname), el('label', { class: 'field' }, 'Address (IP or domain)', qhost), el('label', { class: 'field' }, 'Server port', qport)),
+        el('div', { class: 'row' }, gen), devQrInfo),
+      el('div', {}, devQrImg, devQrActions)),
+    el('h3', { style: { marginTop: '18px' } }, 'Label QR (Hik-Connect cloud add by serial)'));
   body.append(el('div', { class: 'row', style: { alignItems: 'flex-start', gap: '24px' } },
     el('div', { style: { flex: 1 } },
       el('h3', {}, 'Status'), status,

@@ -263,6 +263,15 @@ function register(ctx) {
   h('hikconnect:status', (_e, deviceId) => hikDriver(deviceId).drv.hikConnect());
   h('hikconnect:set', (_e, { deviceId, enabled, verificationCode }) => hikDriver(deviceId).drv.setHikConnect({ enabled, verificationCode }).then(() => true));
   h('hikconnect:qr', async (_e, { text }) => require('qrcode').toDataURL(String(text || ''), { margin: 1, width: 512, errorCorrectionLevel: 'M' }));
+  // iVMS-4200-style password-protected device export QR (carries host/port/user/password for the mobile app's IP-device import)
+  h('hikconnect:deviceQr', async (_e, { deviceId, password, host, port, name }) => {
+    const dev = store.getDeviceWithSecret(deviceId);
+    if (!dev) throw new Error('Device not found');
+    const { encodeDeviceQr } = require('./hikqr');
+    const text = encodeDeviceQr({ devices: [{ name: name || dev.name, host: host || dev.host, port: Number(port) || (dev.transport === 'sdk' ? dev.port : 8000), username: dev.username, password: dev.password }], password });
+    const dataUrl = await require('qrcode').toDataURL(text, { margin: 1, width: 512, errorCorrectionLevel: 'M' });
+    return { text, dataUrl, length: text.length };
+  });
   h('hikconnect:saveQr', async (e, { deviceId, text }) => {
     const dev = store.getDevice(deviceId);
     const r = await dialog.showSaveDialog(BrowserWindow.fromWebContents(e.sender), { defaultPath: `${safeName(dev ? dev.name : 'device')}-hikconnect-qr.png`, filters: [{ name: 'PNG image', extensions: ['png'] }] });
