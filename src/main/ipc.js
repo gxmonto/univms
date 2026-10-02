@@ -50,6 +50,26 @@ function register(ctx) {
     ffmpeg: ffmpegBin.status(store.getSettings()), ...dirs(), locked: !!ctx.locked,
   }));
   h('app:openExternal', (_e, url) => shell.openExternal(url));
+  h('app:changelog', (_e, version) => {
+    // Section of CHANGELOG.md for a version (bundled with the app)
+    for (const p of [path.join(app.getAppPath(), 'CHANGELOG.md'), path.join(__dirname, '..', '..', 'CHANGELOG.md')]) {
+      try {
+        const text = fs.readFileSync(p, 'utf8');
+        const re = new RegExp(`^## ${String(version).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))`, 'm');
+        const m = re.exec(text);
+        if (m) return m[1].trim();
+      } catch (_) {}
+    }
+    return null;
+  });
+  // ---------- updates ----------
+  h('updates:status', () => ctx.updater ? ctx.updater.status : null);
+  h('updates:check', async () => { if (!ctx.updater) return null; const s = await ctx.updater.check({ manual: true }); return { ...s, manualCheck: true }; });
+  h('updates:download', () => ctx.updater ? ctx.updater.download() : null);
+  h('updates:install', () => ctx.updater ? ctx.updater.install() : { ok: false, reason: 'Updater unavailable' });
+  h('updates:skip', (_e, version) => { if (!ctx.updater) return null; const v = ctx.updater.skip(version); store.setSettings({ updates: { ...store.getSettings().updates, skippedVersion: v } }); return v; });
+  h('updates:dismiss', () => ctx.updater ? ctx.updater.dismiss() : null);
+  h('updates:configure', (_e, patch) => { const u = { ...store.getSettings().updates, ...patch }; store.setSettings({ updates: u }); if (ctx.updater) ctx.updater.configure(u); return u; });
   h('app:openPath', (_e, p) => shell.openPath(p));
   h('app:showInFolder', (_e, p) => shell.showItemInFolder(p));
   h('app:quit', () => app.quit());
@@ -58,6 +78,7 @@ function register(ctx) {
   h('window:minimize', (e) => { const w = BrowserWindow.fromWebContents(e.sender); w && w.minimize(); });
   h('window:toggleMaximize', (e) => { const w = BrowserWindow.fromWebContents(e.sender); if (w) w.isMaximized() ? w.unmaximize() : w.maximize(); });
   h('window:close', (e) => { const w = BrowserWindow.fromWebContents(e.sender); w && w.close(); });
+  h('window:isMaximized', (e) => { const w = BrowserWindow.fromWebContents(e.sender); return !!(w && w.isMaximized()); });
 
   // ---------- settings ----------
   h('settings:get', () => ({ ...store.getSettings(), ...dirs() }));

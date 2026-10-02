@@ -1,5 +1,5 @@
 // Camera tree (by device or by group) with search, drag & drop, context menu
-import { state, el, svg, bus, api, toast, contextMenu, promptText, modal, deviceById } from './core.js';
+import { state, el, svg, bus, api, toast, contextMenu, promptText, modal, deviceById, actions } from './core.js';
 
 export const DT_CAMERA = 'application/x-univms-camera';
 export const DT_DEVICE = 'application/x-univms-device';
@@ -67,6 +67,14 @@ export function createCameraTree(container, opts = {}) {
     header.addEventListener('click', () => { collapsed.has(key) ? collapsed.delete(key) : collapsed.add(key); localStorage.setItem('tree.collapsed', JSON.stringify([...collapsed])); render(); });
     header.addEventListener('dblclick', () => opts.onActivateDevice && opts.onActivateDevice(cams));
     header.addEventListener('dragstart', (e) => { e.dataTransfer.setData(dragData.type, dragData.value); e.dataTransfer.setData('text/plain', label); });
+    header.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      const dev = dragData.type === DT_DEVICE ? deviceById(dragData.value) : null;
+      contextMenu(e.clientX, e.clientY, dev ? deviceMenuItems(dev, cams, opts) : [
+        { label: 'Open all in live view', icon: 'play', onClick: () => opts.onActivateDevice && opts.onActivateDevice(cams) },
+        { label: isCollapsed ? 'Expand' : 'Collapse', onClick: () => header.click() },
+      ]);
+    });
     const kids = el('div', { class: 'children' });
     if (!isCollapsed) for (const c of cams) kids.append(camNode(c));
     return el('div', {}, header, kids);
@@ -102,6 +110,7 @@ export function createCameraTree(container, opts = {}) {
             header.addEventListener('click', () => { collapsed.has(key) ? collapsed.delete(key) : collapsed.add(key); localStorage.setItem('tree.collapsed', JSON.stringify([...collapsed])); render(); });
             header.addEventListener('dblclick', () => opts.onActivateDevice && opts.onActivateDevice(dc));
             header.addEventListener('dragstart', (e) => { e.dataTransfer.setData(DT_DEVICE, d.id); e.dataTransfer.setData('text/plain', d.name); });
+            header.addEventListener('contextmenu', (e) => { e.preventDefault(); contextMenu(e.clientX, e.clientY, deviceMenuItems(d, dc, opts)); });
             const kids = el('div', { class: 'children' });
             if (!isCollapsed) for (const [g, gc] of [...groups].sort((a, b) => a[0].localeCompare(b[0]))) kids.append(groupNode(d.id + '/' + g, g || 'Ungrouped', 'folder', gc, { type: DT_GROUP, value: gc.map((c) => c.id).join(',') }));
             body.append(el('div', {}, header, kids));
@@ -126,6 +135,21 @@ export function createCameraTree(container, opts = {}) {
   render();
   const destroy = () => { bus.removeEventListener('data', render); bus.removeEventListener('status', render); bus.removeEventListener('playing', render); };
   return { refresh: render, destroy, selected: () => [...selected], setSelected: (ids) => { selected = new Set([].concat(ids)); render(); }, get mode() { return mode; } };
+}
+
+/** Right-click menu for a device (shared by the tree and the device table). */
+export function deviceMenuItems(dev, cams, opts = {}) {
+  const run = (name, ...a) => (actions[name] ? actions[name](...a) : toast('Open Device Management to do that', 'warn'));
+  return [
+    { label: 'Open all cameras in live view', icon: 'play', onClick: () => (opts.onActivateDevice ? opts.onActivateDevice(cams) : window.__navigate('live', { deviceId: dev.id })) },
+    '-',
+    { label: 'Edit device…', icon: 'edit', onClick: () => run('editDevice', dev) },
+    { label: 'Rename…', icon: 'edit', onClick: () => run('renameDevice', dev) },
+    { label: 'Remote configuration…', icon: 'settings', onClick: () => run('remoteConfig', dev) },
+    { label: 'Refresh camera list', icon: 'refresh', onClick: async () => { try { const r = await api('devices:refresh', dev.id); toast(`${dev.name}: ${r.cameras.length} cameras`, 'ok'); } catch (e) { toast(e.message, 'err'); } } },
+    '-',
+    { label: 'Delete device', icon: 'trash', danger: true, onClick: () => run('deleteDevice', dev) },
+  ];
 }
 
 export function showCameraInfo(cam) {

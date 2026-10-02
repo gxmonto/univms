@@ -10,6 +10,8 @@ export const state = {
 };
 
 export const bus = new EventTarget();
+// Cross-view actions registered by views (avoids circular imports): editDevice(dev), remoteConfig(dev), deleteDevice(dev), renameDevice(dev)
+export const actions = {};
 export const emit = (name, detail) => bus.dispatchEvent(new CustomEvent(name, { detail }));
 
 export async function loadAll() {
@@ -34,6 +36,7 @@ export function el(tag, attrs = {}, ...children) {
     else if (k === 'style' && typeof v === 'object') Object.assign(node.style, v);
     else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2).toLowerCase(), v);
     else if (k === 'dataset') Object.assign(node.dataset, v);
+    else if (k === 'draggable' || k === 'contenteditable' || k === 'spellcheck') node.setAttribute(k, String(v)); // enumerated attrs: "" is invalid (draggable="" disables dragging)
     else if (v === true) node.setAttribute(k, '');
     else node.setAttribute(k, v);
   }

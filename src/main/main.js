@@ -8,6 +8,7 @@ const { DriverPool } = require('./drivers');
 const { StreamManager } = require('./streams');
 const { EventHub } = require('./events');
 const ipc = require('./ipc');
+const { Updater } = require('./updater');
 
 // Chromium flags: HW HEVC where the platform supports it, no background throttling for video walls
 app.commandLine.appendSwitch('enable-features', 'PlatformHEVCDecoderSupport');
@@ -46,6 +47,7 @@ if (!gotLock && !SMOKE && !E2E) {
     const win = new BrowserWindow({
       width: params.width || 1480, height: params.height || 900, minWidth: 980, minHeight: 620,
       backgroundColor: '#0f1318', title: 'UniVMS', show: false, autoHideMenuBar: true,
+      frame: false, // custom title bar with min/max/close in the renderer (same as TwinLine)
       icon: path.join(__dirname, '..', '..', 'build', process.platform === 'win32' ? 'icon.ico' : 'icons/256x256.png'),
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: false,
@@ -63,6 +65,7 @@ if (!gotLock && !SMOKE && !E2E) {
     });
     const wc = win.webContents;
     win.on('closed', () => { windows.delete(win); streams.stopAllFor(wc); });
+    for (const ev of ['maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen']) win.on(ev, () => { if (!wc.isDestroyed()) wc.send('window:state', { maximized: win.isMaximized(), fullscreen: win.isFullScreen() }); });
     // reload / renderer crash: the old renderer's streams have no consumer any more
     wc.on('did-start-navigation', (e) => { if (e.isMainFrame !== false) streams.stopAllFor(wc); });
     win.webContents.on('will-navigate', (e) => e.preventDefault());
@@ -135,6 +138,11 @@ if (!gotLock && !SMOKE && !E2E) {
     for (const d of store.list('devices')) if (d.cameras) hub.setCameras(d.id, d.cameras);
     hub.start();
 
+    ctx.updater = new Updater({ log });
+    ctx.updater.on('status', (s) => broadcast('updates:status', s));
+    ctx.updater.configure(store.getSettings().updates);
+    if (!SMOKE && !E2E) ctx.updater.start();
+
     const win = createWindow();
     log('UniVMS started', app.getVersion(), 'electron', process.versions.electron);
 
@@ -168,5 +176,5 @@ if (!gotLock && !SMOKE && !E2E) {
   app.on('activate', () => { if (windows.size === 0) createWindow(); });
   app.on('window-all-closed', () => { if (process.platform !== 'darwin' && !(tray && store.getSettings().minimizeToTray)) app.quit(); });
   app.on('before-quit', () => { app.isQuitting = true; });
-  app.on('will-quit', () => { try { hub && hub.stop(); streams && streams.shutdown(); store && store.flush(); } catch (_) {} });
+  app.on('will-quit', () => { try { ctx.updater && ctx.updater.stop(); hub && hub.stop(); streams && streams.shutdown(); store && store.flush(); } catch (_) {} });
 }

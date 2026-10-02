@@ -39,11 +39,13 @@ function createTile(i) {
   nameEl.append(label, recEl, statusEl);
   const msg = el('div', { class: 'msg hidden' });
   const spinner = el('div', { class: 'spinner hidden' });
-  const hint = el('div', { class: 'empty-hint' }, svg('camera'), `Drag a camera here`);
+  const hint = el('div', { class: 'empty-hint' }, svg('camera'));
+  const hintInfo = el('div', { class: 'hint-info', title: 'Drag a camera, a whole device or a group from the tree onto this window, or double-click a camera in the tree to play it in the selected window.' }, 'i');
   const tools = el('div', { class: 'tools hidden' });
   const tile = { i, cameraId: null, stream: state.settings.defaultStream || 'sub', audio: false, player: null, zoom: null, el: null, video, nameEl, label, statusEl, recEl, msg, spinner, hint, tools, recording: false, ptz3d: false };
-  const t = el('div', { class: 'tile', dataset: { idx: i } }, video, hint, nameEl, msg, spinner, tools);
+  const t = el('div', { class: 'tile', dataset: { idx: i } }, video, hint, hintInfo, nameEl, msg, spinner, tools);
   tile.el = t;
+  tile.hintInfo = hintInfo;
 
   const tb = (icon, title, fn, cls = '') => { const b = el('button', { title, class: cls, onClick: (e) => { e.stopPropagation(); fn(b); } }, svg(icon)); return b; };
   const streamBtn = el('button', { class: 'lbl-btn', title: 'Toggle main / sub stream', onClick: (e) => { e.stopPropagation(); setStream(tile, tile.stream === 'main' ? 'sub' : 'main'); } }, 'SUB');
@@ -169,7 +171,7 @@ export function assign(i, cameraId, stream) {
   if (!cam.streams || !cam.streams.sub) tile.stream = 'main';
   tile.streamBtn.textContent = tile.stream === 'main' ? 'MAIN' : 'SUB';
   tile.label.textContent = cam.name;
-  tile.nameEl.classList.remove('hidden'); tile.hint.classList.add('hidden'); tile.tools.classList.remove('hidden');
+  tile.nameEl.classList.remove('hidden'); tile.hint.classList.add('hidden'); tile.hintInfo.classList.add('hidden'); tile.tools.classList.remove('hidden');
   tile.player = new Player(tile.video, { cameraId, stream: tile.stream, kind: 'live', audio: tile.audio, onStatus: (s, d) => setTileStatus(tile, s, d) });
   tile.player.start();
   state.playing.add(cameraId);
@@ -184,7 +186,7 @@ export function clearTile(i) {
   stopRecordingIfAny(tile);
   if (tile.cameraId) { state.playing.delete(tile.cameraId); }
   tile.cameraId = null; tile.zoom = null; applyZoom(tile); tile.zoomBtn.classList.remove('on');
-  tile.nameEl.classList.add('hidden'); tile.hint.classList.remove('hidden'); tile.tools.classList.add('hidden');
+  tile.nameEl.classList.add('hidden'); tile.hint.classList.remove('hidden'); tile.hintInfo.classList.remove('hidden'); tile.tools.classList.add('hidden');
   setTileStatus(tile, 'idle', '');
   if (tile.ptz3d) { tile.ptz3d = false; tile.ptzBtn.classList.remove('on'); }
   emit('playing');
@@ -425,6 +427,7 @@ export function mount(container, p = {}) {
   } catch (_) {}
   sessionStorage.setItem('live.booted', '1');
   if (!restored) renderGrid(true);
+  if (p.deviceId) fillFrom(0, state.cameras.filter((c) => c.deviceId === p.deviceId && !c.hidden).map((c) => c.id));
   if (p.cameraId) {
     let idx = tiles.findIndex((t) => t.cameraId === p.cameraId);
     if (idx < 0) idx = tiles.findIndex((t) => !t.cameraId);

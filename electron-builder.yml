@@ -10,7 +10,18 @@ directories:
 files:
   - src/**/*
   - package.json
+  - CHANGELOG.md
   - "!**/*.map"
+
+# Update feed (electron-updater): GitHub Releases of this repository. Also written into resources/app-update.yml.
+publish:
+  provider: github
+  owner: gxmonto
+  repo: univms
+
+# Release notes embedded in latest.yml so the update dialog can show "what's new" (generated from CHANGELOG.md by scripts/bump.js / CI)
+releaseInfo:
+  releaseNotesFile: release-notes.md
 
 # ffmpeg/ffprobe binaries fetched by scripts/fetch-ffmpeg.js into vendor/ffmpeg/<platform>-<arch>/
 # (declared per platform below so a Windows build never ships Linux binaries and vice versa)

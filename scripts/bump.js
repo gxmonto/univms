@@ -61,8 +61,9 @@ if (fs.existsSync(lockPath)) {
   fs.writeFileSync(lockPath, JSON.stringify(lock, null, 2) + '\n');
 }
 fs.writeFileSync(clPath, changelog);
+fs.writeFileSync(path.join(root, 'release-notes.md'), body + '\n');
 
-sh('git add package.json package-lock.json CHANGELOG.md');
+sh('git add package.json package-lock.json CHANGELOG.md release-notes.md');
 sh(`git commit -q -m "Release v${next}"`);
 sh(`git tag -a v${next} -m "UniVMS ${next}"`);
 console.log(`Committed and tagged v${next}`);

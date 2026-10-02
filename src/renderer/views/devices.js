@@ -1,6 +1,6 @@
 // Device Management: devices table, add/edit/test, discovery, remote config, camera groups, DW layout import
-import { api, state, bus, el, svg, btn, toast, modal, confirm, promptText, fmtTime, fmtBytes, loadAll, cameraById, setStatus } from '../core.js';
-import { createCameraTree } from '../tree.js';
+import { api, state, bus, el, svg, btn, toast, modal, confirm, promptText, fmtTime, fmtBytes, loadAll, cameraById, setStatus, actions, contextMenu } from '../core.js';
+import { createCameraTree, deviceMenuItems } from '../tree.js';
 
 let tbody, types = [], selectedId = null, tab = 'devices', container_, pickerTree = null;
 
@@ -11,7 +11,8 @@ export function editDevice(dev = null, prefill = {}) {
   const d = { type: 'hikvision', port: 80, https: false, username: 'admin', ...(dev || {}), ...prefill };
   const f = {};
   const inp = (key, attrs = {}) => (f[key] = el('input', { type: 'text', value: d[key] !== undefined && d[key] !== null ? d[key] : '', ...attrs }));
-  f.type = el('select', { onChange: () => { const t = types.find((x) => x.id === f.type.value); if (t && (!f.port.value || types.some((x) => String(x.defaultPort) === f.port.value))) f.port.value = t.defaultPort; f.https.checked = f.type.value === 'dwspectrum'; httpsLbl.classList.toggle('hidden', f.type.value === 'dwspectrum'); } }, ...types.map((t) => el('option', { value: t.id, selected: t.id === d.type }, t.label)));
+  const portLabelFor = (type) => (type === 'dwspectrum' ? 'Server port (DW Spectrum, usually 7001)' : 'HTTP port (the web/ISAPI port of the NVR, usually 80 — not RTSP 554 or SDK 8000)');
+  f.type = el('select', { onChange: () => { const t = types.find((x) => x.id === f.type.value); if (t && (!f.port.value || types.some((x) => String(x.defaultPort) === f.port.value))) f.port.value = t.defaultPort; f.https.checked = f.type.value === 'dwspectrum'; httpsLbl.classList.toggle('hidden', f.type.value === 'dwspectrum'); portLabel.firstChild.textContent = portLabelFor(f.type.value); } }, ...types.map((t) => el('option', { value: t.id, selected: t.id === d.type }, t.label)));
   inp('name', { placeholder: 'Front office NVR' });
   inp('host', { placeholder: '192.168.1.100 or hostname' });
   inp('port', { type: 'number', min: 1, max: 65535 });
@@ -22,19 +23,28 @@ export function editDevice(dev = null, prefill = {}) {
   f.eventsDisabled = el('input', { type: 'checkbox', checked: !!d.eventsDisabled });
   const httpsLbl = el('label', { class: `check ${d.type === 'dwspectrum' ? 'hidden' : ''}` }, f.https, 'Use HTTPS');
   const result = el('div', { class: 'small', style: { minHeight: '20px' } });
+  const portLabel = el('label', { class: 'field' }, portLabelFor(d.type), f.port);
   const collect = () => ({ ...(dev ? { id: dev.id } : {}), type: f.type.value, name: f.name.value.trim(), host: f.host.value.trim(), port: Number(f.port.value) || types.find((t) => t.id === f.type.value).defaultPort, https: f.type.value === 'dwspectrum' ? true : f.https.checked, username: f.username.value, password: f.password.value, rtspPort: Number(f.rtspPort.value) || undefined, eventsDisabled: f.eventsDisabled.checked });
   const validate = (c) => { if (!c.host) throw new Error('Host is required'); if (!c.name) c.name = c.host; if (!c.username) throw new Error('Username is required'); if (!dev && !c.password) throw new Error('Password is required'); };
   const body = el('div', { class: 'form-grid' },
     el('label', { class: 'field full' }, 'Device type', f.type),
     el('label', { class: 'field' }, 'Name', f.name), el('label', { class: 'field' }, 'Host / IP', f.host),
-    el('label', { class: 'field' }, 'Port', f.port), el('label', { class: 'field' }, 'RTSP port (optional)', f.rtspPort),
+    portLabel, el('label', { class: 'field' }, 'RTSP port (optional, auto-detected)', f.rtspPort),
     el('label', { class: 'field' }, 'Username', f.username), el('label', { class: 'field' }, 'Password', f.password),
     el('div', { class: 'row full' }, httpsLbl, el('label', { class: 'check' }, f.eventsDisabled, 'Do not subscribe to events from this device')),
     el('div', { class: 'full' }, result));
   modal({ title: dev ? `Edit ${dev.name}` : 'Add device', size: 'wide', body, buttons: [
     { label: 'Test connection', left: true, onClick: async () => { try { const c = collect(); validate(c); result.textContent = 'Testing…'; result.className = 'small muted'; const r = await api('devices:test', c); result.className = 'small ok'; result.textContent = `OK: ${r.info.model || r.info.name || ''} ${r.info.firmware ? '• fw ' + r.info.firmware : ''} • ${r.cameraCount} camera(s)${r.info.rtspPort ? ' • RTSP ' + r.info.rtspPort : ''}`; } catch (e) { result.className = 'small err'; result.textContent = 'Failed: ' + e.message; } return false; } },
     { label: 'Cancel' },
-    { label: dev ? 'Save' : 'Add', primary: true, onClick: async (close) => { try { const c = collect(); validate(c); await api('devices:save', c); toast(`${c.name} saved`, 'ok'); close(); } catch (e) { result.className = 'small err'; result.textContent = e.message; return false; } } },
+    { label: dev ? 'Save' : 'Add', primary: true, onClick: async (close) => {
+      let c;
+      try { c = collect(); validate(c); } catch (e) { result.className = 'small err'; result.textContent = e.message; return false; }
+      let saved;
+      try { saved = await api('devices:save', c); } catch (e) { result.className = 'small err'; result.textContent = 'Could not save: ' + e.message; return false; }
+      close();
+      toast(`${c.name} saved — connecting…`, 'ok');
+      api('devices:refresh', saved.id).then((r) => toast(`${c.name}: connected, ${r.cameras.length} camera(s)`, 'ok')).catch((e) => toast(`${c.name} saved, but the connection failed: ${e.message}. Right-click the device → Edit to correct it.`, 'warn', 9000));
+    } },
   ] });
 }
 
@@ -163,7 +173,8 @@ function renderRows() {
     const st = state.status[d.id] || d.status || {};
     const cams = state.cameras.filter((c) => c.deviceId === d.id);
     const online = cams.filter((c) => c.online !== false).length;
-    tbody.append(el('tr', { class: selectedId === d.id ? 'selected' : '', onClick: () => { selectedId = d.id; renderRows(); }, onDblclick: () => remoteConfig(d) },
+    tbody.append(el('tr', { class: selectedId === d.id ? 'selected' : '', onClick: () => { selectedId = d.id; renderRows(); }, onDblclick: () => remoteConfig(d),
+      onContextmenu: (e) => { e.preventDefault(); selectedId = d.id; renderRows(); contextMenu(e.clientX, e.clientY, deviceMenuItems(d, cams)); } },
       el('td', {}, el('span', { class: `status-dot ${st.online === true ? 'on' : st.online === false ? 'off' : 'unknown'}` })),
       el('td', {}, d.name), el('td', {}, typeLabel(d.type)), el('td', {}, `${d.https ? 'https://' : ''}${d.host}:${d.port}`),
       el('td', {}, (d.info && (d.info.model || d.info.name)) || '-'), el('td', {}, (d.info && d.info.serial) || '-'), el('td', {}, (d.info && d.info.firmware) || '-'),
@@ -172,6 +183,16 @@ function renderRows() {
   }
   if (!state.devices.length) tbody.append(el('tr', {}, el('td', { colspan: 10, class: 'empty' }, 'No devices. Click "Add device" or "Online devices" to begin.')));
 }
+
+export async function deleteDevice(d) {
+  if (await confirm(`Remove ${d.name} and all of its cameras from UniVMS?`, { danger: true, okLabel: 'Remove' })) { await api('devices:remove', d.id); if (selectedId === d.id) selectedId = null; toast('Device removed', 'ok'); }
+}
+export async function renameDevice(d) {
+  const n = await promptText('Rename device', 'Device name', d.name);
+  if (n && n.trim() && n.trim() !== d.name) { await api('devices:save', { id: d.id, name: n.trim() }); toast('Renamed', 'ok'); }
+}
+// make device actions available to the camera tree in other views (right-click menus)
+Object.assign(actions, { editDevice: (d) => { if (!types.length) api('devices:types').then((t) => { types = t; editDevice(d); }); else editDevice(d); }, remoteConfig, deleteDevice, renameDevice });
 
 export async function mount(container) {
   container_ = container;

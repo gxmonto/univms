@@ -10,6 +10,7 @@ import * as logs from './views/logs.js';
 import * as maintenance from './views/maintenance.js';
 import * as settings from './views/settings.js';
 import * as about from './views/about.js';
+import { initUpdates } from './updates.js';
 
 const VIEWS = [
   { id: 'live', label: 'Main View', icon: 'live', mod: live },
@@ -121,6 +122,20 @@ async function boot() {
   lockBtn.innerHTML = svg('lock').innerHTML;
   lockBtn.addEventListener('click', async () => { await api('users:lock'); showLogin(); });
   if (isAux) document.getElementById('aux-tag').textContent = 'auxiliary window';
+  // frameless window controls
+  document.getElementById('win-min').addEventListener('click', () => api('window:minimize'));
+  document.getElementById('win-max').addEventListener('click', () => api('window:toggleMaximize'));
+  document.getElementById('win-close').addEventListener('click', () => api('window:close'));
+  const applyWinState = (st) => {
+    document.getElementById('win-max').title = st.maximized ? 'Restore' : 'Maximize';
+    document.getElementById('win-max').innerHTML = st.maximized
+      ? '<svg viewBox="0 0 10 10"><path d="M3 3V1.5h5.5V7H7" fill="none" stroke="currentColor" stroke-width="1"/><rect x="1.5" y="3" width="5.5" height="5.5" fill="none" stroke="currentColor" stroke-width="1"/></svg>'
+      : '<svg viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1"/></svg>';
+    document.body.classList.toggle('fullscreen', !!st.fullscreen);
+  };
+  on('window:state', applyWinState);
+  api('window:isMaximized').then((m) => applyWinState({ maximized: m, fullscreen: false })).catch(() => {});
+  document.getElementById('topbar').addEventListener('dblclick', (e) => { if (e.target.closest('button, input, select, nav')) return; api('window:toggleMaximize'); });
 
   state.info = await api('app:info');
   await loadAll();
@@ -146,6 +161,7 @@ async function boot() {
   on('record:end', (r) => { if (r.code === 0 || r.code === 255) toast(`Recording saved: ${r.file}`, 'ok', 5000); else toast(`Recording ended (${r.code}) ${r.error || ''}`, 'warn', 6000); });
   on('export:end', (r) => { if (r.code === 0) toast(`Export complete: ${r.file}`, 'ok', 8000); else toast(`Export failed: ${r.error || r.code}`, 'err', 8000); });
   updateBadge();
+  if (!isAux) initUpdates().catch(() => {});
 
   // status bar
   setInterval(async () => {

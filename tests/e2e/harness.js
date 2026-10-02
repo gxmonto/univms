@@ -75,6 +75,17 @@ async function run(ctx, win, app) {
     }
     results.livePlaying = ok;
     results.lastStatus = status;
+    // drag & drop: tree nodes must be draggable="true" and a drop onto an empty tile must assign the camera
+    results.treeDraggable = await js(`document.querySelector('.tree .node.camera').getAttribute('draggable')`);
+    results.dropAssigned = await js(`(() => {
+      const tile = document.querySelectorAll('.tile')[1];
+      const dt = new DataTransfer(); dt.setData('application/x-univms-camera', ${JSON.stringify(cams[0].id)});
+      tile.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+      tile.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+      return !tile.querySelector('.name').classList.contains('hidden');
+    })()`);
+    await sleep(300);
+    results.winControls = await js(`!!document.getElementById('win-close') && getComputedStyle(document.getElementById('topbar')).getPropertyValue('-webkit-app-region')`);
     await shot('03-live-playing');
     // playback view and event center for visual check
     await js(`window.__navigate('playback', { cameraId: ${JSON.stringify(cams[0].id)} })`); await sleep(1500); await shot('04-playback');
@@ -100,7 +111,7 @@ async function run(ctx, win, app) {
   }
   log('E2E RESULTS', results);
   fs.writeFileSync(path.join(outDir, 'results.json'), JSON.stringify(results, null, 2));
-  const pass = results.deviceAdded && results.cameras > 0 && results.livePlaying && results.mapImageWidth > 0 && results.mapHotspots === 1 && results.events > 0 && !results.error;
+  const pass = results.deviceAdded && results.cameras > 0 && results.livePlaying && results.mapImageWidth > 0 && results.mapHotspots === 1 && results.events > 0 && results.treeDraggable === 'true' && results.dropAssigned === true && !results.error;
   log(pass ? 'E2E PASS' : 'E2E FAIL');
   app.isQuitting = true;
   app.exit(pass ? 0 : 1);

@@ -1,6 +1,7 @@
 // System Config: paths, streaming, alarms, login & users, startup behavior
-import { api, state, el, svg, btn, toast, confirm, promptText, loadAll, setStatus } from '../core.js';
+import { api, state, el, svg, btn, toast, confirm, promptText, loadAll, setStatus, modal } from '../core.js';
 import { typeLabel } from './events.js';
+import { showUpdateDialog, updateStatus } from '../updates.js';
 
 const ALARM_TYPES = ['VMD', 'linedetection', 'fielddetection', 'regionEntrance', 'regionExiting', 'IO', 'videoloss', 'shelteralarm', 'facedetection', 'PIR', 'scenechangedetection', 'audioexception', 'diskfull', 'diskerror', 'nicbroken', 'ipconflict', 'illaccess', 'cameraMotionEvent', 'cameraInputEvent', 'cameraDisconnectEvent', 'storageFailureEvent', 'networkIssueEvent', 'serverFailureEvent', 'analyticsSdkEvent', 'softwareTriggerEvent', 'deviceOffline'];
 
@@ -41,7 +42,28 @@ export async function mount(container) {
       el('div', { class: 'card' }, el('h3', {}, 'Alarms'), el('div', { class: 'col' }, check('alarmPopup', 'Show alarm popup with snapshot'), check('alarmSound', 'Play alarm sound')), el('h3', {}, 'Event types that trigger popups'), alarmGrid),
       el('div', { class: 'card' }, el('h3', {}, 'Startup & window'), el('div', { class: 'col' }, check('startFullscreen', 'Start in fullscreen'), check('minimizeToTray', 'Minimize to tray on close (requires app restart)'), el('div', { class: 'dim small' }, `Startup view: ${s.startupView ? (state.views.find((v) => v.id === s.startupView) || {}).name || s.startupView : 'last used layout'} — choose in Main View → Views → Manage views`))),
       el('div', { class: 'card' }, el('h3', {}, 'Application login'), el('div', { class: 'col' }, check('requireLogin', 'Require login at startup (needs at least one user)'), check('autoLogin', 'Auto-login (skip the login screen but keep lock button)')), el('h3', {}, 'Users'), usersBox, el('div', { class: 'row', style: { marginTop: '8px' } }, btn('Add user', { cls: 'sm primary', icon: 'plus' }, async () => { const u = await promptText('New user', 'Username'); if (!u) return; const p = await promptText('New user', 'Password', '', { password: true }); if (!p) return; try { await api('users:create', { username: u, password: p }); renderUsers(); toast('User created', 'ok'); } catch (e) { toast(e.message, 'err'); } }))),
+      updatesCard(s, info),
       el('div', { class: 'card' }, el('h3', {}, 'About'), el('dl', { class: 'kv' }, el('dt', {}, 'Version'), el('dd', {}, info.version), el('dt', {}, 'Platform'), el('dd', {}, info.platform), el('dt', {}, 'Data folder'), el('dd', { class: 'mono small' }, info.userData), el('dt', {}, 'Electron'), el('dd', {}, window.vms.versions.electron), el('dt', {}, 'Chromium'), el('dd', {}, window.vms.versions.chrome)), el('div', { class: 'row', style: { marginTop: '8px' } }, btn('Open data folder', { cls: 'sm', icon: 'folder' }, () => api('app:openPath', info.userData)), btn('Help & feature guide', { cls: 'sm', icon: 'info' }, () => window.__navigate('about'))))));
   setStatus('System Config');
+}
+function updatesCard(s, info) {
+  const u = { mode: 'ask', url: '', token: '', ...(s.updates || {}) };
+  const line = el('div', { class: 'dim small', style: { marginTop: '8px', minHeight: '18px' } });
+  const describe = (st) => {
+    if (!st) return 'Status unknown';
+    const m = { idle: 'No update pending.', checking: 'Checking…', available: `Version ${st.version} is available.`, downloading: `Downloading ${st.version}… ${st.progress && st.progress.percent ? Math.round(st.progress.percent) + '%' : ''}`, downloaded: `Version ${st.version} downloaded — restart to install.`, 'up-to-date': `Up to date (${st.current}).`, error: 'Error: ' + (st.error || ''), disabled: st.error || 'Disabled', unsupported: 'Not supported for this package.' };
+    return (m[st.state] || st.state) + (st.lastCheck ? ` Last check ${new Date(st.lastCheck).toLocaleTimeString()}.` : '');
+  };
+  line.textContent = describe(updateStatus());
+  window.vms.on('updates:status', (st) => { if (document.body.contains(line)) line.textContent = describe(st); });
+  const mode = el('select', { onChange: () => api('updates:configure', { mode: mode.value }).then(() => { s.updates = { ...u, mode: mode.value }; }) }, ...[['ask', 'Notify me and ask before downloading (recommended)'], ['auto', 'Download automatically, ask before restarting'], ['off', 'Never check (manual check still works)']].map(([v, l]) => el('option', { value: v, selected: u.mode === v }, l)));
+  const url = el('input', { type: 'text', value: u.url, placeholder: 'https://github.com/gxmonto/univms (default)', onChange: () => api('updates:configure', { url: url.value.trim() }).catch((e) => toast(e.message, 'err')) });
+  const token = el('input', { type: 'password', value: u.token, placeholder: 'only needed while the repository is private', onChange: () => api('updates:configure', { token: token.value.trim() }) });
+  const check = btn('Check for updates now', { cls: 'sm', icon: 'refresh' }, async () => { check.disabled = true; line.textContent = 'Checking…'; try { const st = await api('updates:check'); line.textContent = describe(st); if (st && st.state === 'available') showUpdateDialog(st); else if (st && st.state === 'error') toast(st.error, 'err', 6000); } finally { check.disabled = false; } });
+  return el('div', { class: 'card' }, el('h3', {}, 'Updates'),
+    el('div', { class: 'col' }, el('label', { class: 'field' }, 'Update policy', mode), el('label', { class: 'field' }, 'Update server (GitHub repository or folder with latest.yml)', url), el('label', { class: 'field' }, 'GitHub token', token)),
+    el('div', { class: 'row', style: { marginTop: '8px' } }, check, btn('Release notes', { cls: 'sm', icon: 'info' }, async () => { const notes = await api('app:changelog', info.version); modal({ title: `UniVMS ${info.version}`, size: 'wide', body: el('pre', { class: 'small', style: { whiteSpace: 'pre-wrap', margin: 0 } }, notes || 'No notes for this version'), buttons: [{ label: 'Close', primary: true }] }); })),
+    line,
+    el('div', { class: 'dim small', style: { marginTop: '6px' } }, 'The Windows installer updates itself after you confirm. The portable exe and the Linux .deb/.rpm cannot replace themselves, so the dialog offers a download link instead. Updates are checked 20 s after start and every 6 hours.'));
 }
 export function unmount() {}

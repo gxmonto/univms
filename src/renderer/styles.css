@@ -30,12 +30,19 @@ a { color: var(--accent); }
 svg { width: 1.2em; height: 1.2em; vertical-align: -0.25em; }
 
 #app { display: grid; grid-template-rows: 46px 1fr 24px; height: 100vh; }
-#topbar { display: flex; align-items: center; gap: 16px; padding: 0 12px; background: var(--bg-2); border-bottom: 1px solid var(--line); -webkit-app-region: no-drag; }
+#topbar { display: flex; align-items: center; gap: 16px; padding: 0 0 0 12px; background: var(--bg-2); border-bottom: 1px solid var(--line); -webkit-app-region: drag; user-select: none; }
+#topbar button, #topbar input, #topbar select, #topbar a { -webkit-app-region: no-drag; }
+.win-controls { display: inline-flex; height: 46px; margin-left: 6px; }
+.win-btn { -webkit-app-region: no-drag; width: 46px; height: 46px; border: 0; background: transparent; color: var(--text-2); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.win-btn svg { width: 10px; height: 10px; }
+.win-btn:hover { background: var(--bg-4); color: var(--text); }
+.win-btn.close:hover { background: #c42b1c; color: #fff; }
+body.fullscreen .win-controls { display: none; }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 15px; letter-spacing: .3px; }
 .brand .logo { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg, var(--accent), #7cc4ff); box-shadow: 0 0 0 2px rgba(47,143,255,.25); display: inline-block; position: relative; }
 .brand .logo::after { content: ""; position: absolute; inset: 7px; background: var(--bg-2); border-radius: 3px; }
 .brand .tag { font-size: 11px; color: var(--text-3); font-weight: 400; }
-#nav { display: flex; gap: 2px; flex: 1; overflow-x: auto; }
+#nav { display: flex; gap: 2px; flex: 1; overflow-x: auto; -webkit-app-region: no-drag; }
 #nav button { background: transparent; border: 0; color: var(--text-2); padding: 7px 12px; border-radius: var(--radius); cursor: pointer; display: flex; align-items: center; gap: 7px; white-space: nowrap; }
 #nav button:hover { background: var(--bg-3); color: var(--text); }
 #nav button.active { background: var(--bg-4); color: #fff; }
@@ -161,8 +168,11 @@ table.grid tr.selected td { background: rgba(47,143,255,.14); }
 .tile.drag-over { border-color: var(--ok); box-shadow: inset 0 0 0 2px var(--ok); }
 .tile video { width: 100%; height: 100%; object-fit: contain; background: #000; display: block; transform-origin: center; }
 .tile.fill video { object-fit: cover; }
-.tile .empty-hint { color: var(--text-3); font-size: 12px; text-align: center; pointer-events: none; }
-.tile .empty-hint svg { width: 28px; height: 28px; display: block; margin: 0 auto 6px; opacity: .4; }
+.tile .empty-hint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-3); pointer-events: none; }
+.tile .empty-hint svg { width: 26px; height: 26px; opacity: .25; }
+.tile .hint-info { position: absolute; right: 6px; top: 6px; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line); color: var(--text-3); font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; cursor: help; background: var(--bg-2); opacity: .6; }
+.tile .hint-info:hover { opacity: 1; color: var(--text); }
+.tile video.hidden { display: none; }
 .tile .name { position: absolute; top: 0; left: 0; right: 0; padding: 3px 8px; background: linear-gradient(rgba(0,0,0,.65), transparent); font-size: 12px; display: flex; gap: 8px; align-items: center; pointer-events: none; }
 .tile .name .st { color: var(--text-2); font-size: 11px; margin-left: auto; }
 .tile .name .rec { color: var(--err); animation: blink 1.2s infinite; font-weight: 700; font-size: 11px; }

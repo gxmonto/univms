@@ -31,6 +31,7 @@ const DEFAULTS = {
     autoLogin: false,
     minimizeToTray: false,
     startFullscreen: false,
+    updates: { mode: 'ask', url: '', token: '', skippedVersion: '' },
     autoSwitchInterval: 10,
     hwDecode: true,
     eventRetention: 2000,
