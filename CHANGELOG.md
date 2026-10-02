@@ -2,10 +2,11 @@
 
 ## Unreleased
 
+## 1.3.2 - 2026-10-02
+
 - The repository is public now, so automatic update checks work without a token; the Hikvision SDK runtime moved to a private assets repository used only by the build.
 
 - Settings page no longer overflows horizontally (alarm type grid wraps to the card width).
-
 ## 1.3.1 - 2026-10-02
 
 - Lockout protection: after a device rejects the credentials (ISAPI 401 or SDK login error), UniVMS stops all automatic logins to it until the device is edited, so Hikvision's "illegal login" lock is no longer triggered by background retries. The status column says "Login rejected — edit the device to retry" and 401 messages explain the remaining lock time.
