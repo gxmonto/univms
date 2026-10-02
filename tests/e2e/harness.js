@@ -110,7 +110,9 @@ async function run(ctx, win, app) {
     try {
       await js(`window.vms.invoke('devices:list').then((l) => import('./hikconnect.js').then((m) => m.openHikConnect(l[0])))`);
       await sleep(1500);
-      results.hikConnect = await js(`(() => { const img = document.querySelector('.modal img[alt="QR code"]'); const txt = document.querySelector('.modal').textContent; return { qr: !!(img && img.src.startsWith('data:image/png')), serial: txt.includes('MOCK0001'), enabled: txt.includes('Enabled') }; })()`);
+      await js(`(() => { const p = document.querySelector('.modal input[type=password]'); p.value = 'test1234'; [...document.querySelectorAll('.modal button')].find((b) => b.textContent.includes('Generate QR')).click(); })()`);
+      await sleep(800);
+      results.hikConnect = await js(`(() => { const img = document.querySelector('.modal img[alt="Device QR"]'); const txt = document.querySelector('.modal').textContent; return { qr: !!(img && img.src.startsWith('data:image/png') && img.style.display !== 'none'), serial: txt.includes('MOCK0001'), enabled: txt.includes('Enabled') }; })()`);
       await shot('03d-hikconnect');
       await js(`document.querySelector('.modal .m-head .icon-btn').click()`);
       await sleep(300);
