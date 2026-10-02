@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- "Restart and update" now installs the downloaded update silently and relaunches UniVMS; the installer wizard no longer appears (also applies when an update installs on quit).
+
 ## 1.3.2 - 2026-10-02
 
 - The repository is public now, so automatic update checks work without a token; the Hikvision SDK runtime moved to a private assets repository used only by the build.

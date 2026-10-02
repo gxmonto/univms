@@ -204,7 +204,7 @@ class Updater extends EventEmitter {
 
   install() {
     if (this.status.state !== 'downloaded' || !this._auto) return { ok: false, reason: 'Nothing downloaded yet.' };
-    setImmediate(() => this._auto.quitAndInstall(false, true));
+    setImmediate(() => this._auto.quitAndInstall(true, true)); // silent NSIS install (/S), relaunch when done — no installer wizard
     return { ok: true };
   }
 

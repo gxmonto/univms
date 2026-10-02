@@ -30,7 +30,7 @@ function body(s) {
     wrap.append(el('p', {}, `Downloading UniVMS ${s.version}…`), el('div', { class: 'progress', style: { margin: '8px 0' } }, el('i', { style: { width: pct + '%' } })),
       el('div', { class: 'dim small' }, s.progress && s.progress.total ? `${fmtBytes(s.progress.transferred)} of ${fmtBytes(s.progress.total)}${s.progress.bps ? ` • ${fmtBytes(s.progress.bps)}/s` : ''}` : ''));
   } else if (s.state === 'downloaded') {
-    wrap.append(el('p', {}, `UniVMS ${s.version} has been downloaded. Restart to install it; your devices, views and settings are kept.`));
+    wrap.append(el('p', {}, `UniVMS ${s.version} has been downloaded. Click Restart and update: the app closes, installs silently in the background (no installer wizard) and reopens on the new version. Your devices, views and settings are kept.`));
   } else {
     wrap.append(el('p', { class: 'muted' }, `You have ${s.current}. Version ${s.version} is available.`));
     if (s.packageKind === 'portable') wrap.append(el('p', { class: 'small warn' }, 'The portable exe cannot update itself: download the new file, close UniVMS and replace the old exe.'));
