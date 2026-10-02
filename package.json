@@ -1,0 +1,35 @@
+{
+  "name": "univms",
+  "productName": "UniVMS",
+  "version": "1.0.0",
+  "description": "Multi-vendor video management client for Hikvision NVRs/DVRs and DW Spectrum servers: live view grids, playback, PTZ, events, e-maps and device maintenance.",
+  "main": "src/main/main.js",
+  "author": "SightWatch <mike@sightwatch.com>",
+  "homepage": "https://sightwatch.com",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "smoke": "node scripts/dev.js smoke",
+    "e2e": "node scripts/dev.js e2e",
+    "test": "node --test \"tests/**/*.test.js\"",
+    "fetch-ffmpeg": "node scripts/fetch-ffmpeg.js",
+    "dist:win": "node scripts/fetch-ffmpeg.js win32 x64 && electron-builder --win --x64",
+    "dist:linux": "node scripts/fetch-ffmpeg.js linux x64 && electron-builder --linux dir --x64 && node scripts/package-linux.js",
+    "dist": "npm run dist:win && npm run dist:linux",
+    "dist:linux:wsl": "wsl -d Ubuntu -u root -- bash scripts/build-linux-wsl.sh",
+    "release:major": "node scripts/bump.js major",
+    "release:minor": "node scripts/bump.js minor"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^4.5.0"
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^26.15.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gxmonto/univms.git"
+  }
+}

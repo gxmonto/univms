@@ -1,0 +1,9 @@
+node_modules/
+dist/
+e2e-out/
+vendor/ffmpeg/
+vendor/tools/
+*.part
+*.log
+.DS_Store
+Thumbs.db

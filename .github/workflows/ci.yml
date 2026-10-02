@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+      - name: Syntax-check renderer modules
+        run: |
+          for f in src/renderer/*.js src/renderer/views/*.js; do node --experimental-default-type=module --check "$f"; done
+          for f in src/main/*.js scripts/*.js; do node --check "$f"; done

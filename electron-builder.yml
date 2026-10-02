@@ -1,0 +1,87 @@
+appId: com.sightwatch.univms
+productName: UniVMS
+copyright: Copyright © 2026 SightWatch
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - src/**/*
+  - package.json
+  - "!**/*.map"
+
+# ffmpeg/ffprobe binaries fetched by scripts/fetch-ffmpeg.js into vendor/ffmpeg/<platform>-<arch>/
+# (declared per platform below so a Windows build never ships Linux binaries and vice versa)
+
+asar: true
+
+win:
+  extraResources:
+    - from: vendor/ffmpeg/win32-x64
+      to: ffmpeg
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  icon: build/icon.ico
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: UniVMS
+
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}
+
+linux:
+  extraResources:
+    - from: vendor/ffmpeg/linux-x64
+      to: ffmpeg
+  target:
+    - deb
+    - rpm
+  icon: build/icons
+  category: Video
+  synopsis: Multi-vendor video management client (Hikvision, DW Spectrum)
+  description: >-
+    UniVMS is a desktop video management client for Hikvision NVRs/DVRs/IP cameras
+    (ISAPI) and Digital Watchdog DW Spectrum servers. Live view grids, remote playback,
+    PTZ, event center, e-maps, local recording and device maintenance.
+  maintainer: SightWatch <mike@sightwatch.com>
+  desktop:
+    entry:
+      Name: UniVMS
+      Comment: Video management client
+      Categories: AudioVideo;Video;Network;
+
+deb:
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libuuid1
+    - libsecret-1-0
+  afterInstall: build/linux-after-install.sh
+
+rpm:
+  depends:
+    - gtk3
+    - libnotify
+    - nss
+    - libXScrnSaver
+    - libXtst
+    - xdg-utils
+    - at-spi2-core
+    - libuuid
+    - libsecret
+  afterInstall: build/linux-after-install.sh

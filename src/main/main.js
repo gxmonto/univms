@@ -1,0 +1,172 @@
+'use strict';
+const { app, BrowserWindow, Menu, Tray, nativeImage, protocol, safeStorage, shell, net } = require('electron');
+const path = require('path');
+const fs = require('fs');
+const { pathToFileURL } = require('url');
+const { Store } = require('./store');
+const { DriverPool } = require('./drivers');
+const { StreamManager } = require('./streams');
+const { EventHub } = require('./events');
+const ipc = require('./ipc');
+
+// Chromium flags: HW HEVC where the platform supports it, no background throttling for video walls
+app.commandLine.appendSwitch('enable-features', 'PlatformHEVCDecoderSupport');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+if (process.platform === 'linux') app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder,PlatformHEVCDecoderSupport');
+
+protocol.registerSchemesAsPrivileged([{ scheme: 'univms-map', privileges: { standard: false, secure: true, supportFetchAPI: true, bypassCSP: true } }]);
+
+const SMOKE = !!process.env.UNIVMS_SMOKE;
+const E2E = !!process.env.UNIVMS_E2E;
+let e2e = null;
+if (E2E) { e2e = require('../../tests/e2e/harness'); e2e.prepare(app); }
+const logBuffer = [];
+function log(...args) {
+  const line = `[${new Date().toISOString()}] ${args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')}`;
+  logBuffer.push(line);
+  if (logBuffer.length > 2000) logBuffer.splice(0, logBuffer.length - 2000);
+  console.log(line);
+}
+
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock && !SMOKE && !E2E) {
+  app.quit();
+} else {
+  let store, pool, streams, hub, tray;
+  const windows = new Set();
+  const ctx = { logBuffer, log, locked: false, currentUser: null };
+
+  const broadcast = (channel, ...args) => {
+    for (const w of windows) if (!w.isDestroyed()) w.webContents.send(channel, ...args);
+  };
+
+  function createWindow(params = {}) {
+    const s = store.getSettings();
+    const win = new BrowserWindow({
+      width: params.width || 1480, height: params.height || 900, minWidth: 980, minHeight: 620,
+      backgroundColor: '#0f1318', title: 'UniVMS', show: false, autoHideMenuBar: true,
+      icon: path.join(__dirname, '..', '..', 'build', process.platform === 'win32' ? 'icon.ico' : 'icons/256x256.png'),
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: false,
+        backgroundThrottling: false, spellcheck: false,
+      },
+    });
+    windows.add(win);
+    const q = new URLSearchParams(params.query || {});
+    if (params.aux) q.set('aux', '1');
+    if (params.view) q.set('view', params.view);
+    win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'), { query: Object.fromEntries(q) });
+    win.once('ready-to-show', () => {
+      win.show();
+      if (s.startFullscreen && !params.aux) win.setFullScreen(true);
+    });
+    const wc = win.webContents;
+    win.on('closed', () => { windows.delete(win); streams.stopAllFor(wc); });
+    // reload / renderer crash: the old renderer's streams have no consumer any more
+    wc.on('did-start-navigation', (e) => { if (e.isMainFrame !== false) streams.stopAllFor(wc); });
+    win.webContents.on('will-navigate', (e) => e.preventDefault());
+    win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
+    win.webContents.on('render-process-gone', (_e, d) => { log('renderer gone', d.reason); streams.stopAllFor(wc); });
+    win.on('close', (e) => {
+      if (!params.aux && store.getSettings().minimizeToTray && !app.isQuitting && tray) { e.preventDefault(); win.hide(); }
+    });
+    return win;
+  }
+
+  function setupTray() {
+    try {
+      const iconPath = path.join(__dirname, '..', '..', 'build', process.platform === 'win32' ? 'icon.ico' : 'icons/32x32.png');
+      const img = fs.existsSync(iconPath) ? nativeImage.createFromPath(iconPath) : nativeImage.createEmpty();
+      tray = new Tray(img);
+      tray.setToolTip('UniVMS');
+      tray.setContextMenu(Menu.buildFromTemplate([
+        { label: 'Show UniVMS', click: () => { const w = [...windows][0]; if (w) { w.show(); w.focus(); } else createWindow(); } },
+        { type: 'separator' },
+        { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } },
+      ]));
+      tray.on('double-click', () => { const w = [...windows][0]; if (w) { w.show(); w.focus(); } });
+    } catch (e) { log('tray unavailable', e.message); }
+  }
+
+  function buildMenu() {
+    const tpl = [
+      { label: 'File', submenu: [
+        { label: 'New live view window', accelerator: 'CmdOrCtrl+N', click: () => createWindow({ aux: true, view: 'live' }) },
+        { label: 'Open snapshots folder', click: () => { const s = store.getSettings(); shell.openPath(s.snapshotDir || path.join(app.getPath('videos'), 'UniVMS', 'Snapshots')); } },
+        { type: 'separator' },
+        { role: 'quit' },
+      ] },
+      { label: 'View', submenu: [
+        ...['live', 'playback', 'events', 'emap', 'devices', 'files', 'logs', 'maintenance', 'settings'].map((v, i) => ({ label: ['Main View', 'Remote Playback', 'Event Center', 'E-map', 'Device Management', 'Local Files', 'Log Search', 'Maintenance', 'System Config'][i], accelerator: `CmdOrCtrl+${i + 1}`, click: (_m, w) => w && w.webContents.send('app:navigate', v) })),
+        { type: 'separator' },
+        { role: 'togglefullscreen' }, { role: 'reload' }, { role: 'toggleDevTools' },
+      ] },
+      { label: 'Help', submenu: [
+        { label: 'About UniVMS', click: (_m, w) => w && w.webContents.send('app:navigate', 'about') },
+      ] },
+    ];
+    Menu.setApplicationMenu(Menu.buildFromTemplate(tpl));
+  }
+
+  app.on('second-instance', () => { const w = [...windows][0]; if (w) { if (w.isMinimized()) w.restore(); w.show(); w.focus(); } });
+
+  app.whenReady().then(async () => {
+    const userData = app.getPath('userData');
+    store = new Store(path.join(userData, 'univms-config.json'), safeStorage);
+    pool = new DriverPool(store);
+    streams = new StreamManager(() => store.getSettings());
+    hub = new EventHub(store, pool, broadcast);
+    Object.assign(ctx, { store, pool, streams, hub, broadcast, createWindow });
+    ctx.locked = !!store.getSettings().requireLogin && store.list('users').length > 0 && !store.getSettings().autoLogin;
+
+    // Serve e-map images from userData/maps
+    protocol.handle('univms-map', (req) => {
+      // non-standard scheme: "univms-map://file.png?t=1" parses as host=file.png, pathname='' (never include the query)
+      const u = new URL(req.url);
+      const name = decodeURIComponent(((u.host || '') + u.pathname).replace(/^\/+/, ''));
+      const file = path.join(userData, 'maps', path.basename(name));
+      return net.fetch(pathToFileURL(file).toString());
+    });
+
+    ipc.register(ctx);
+    buildMenu();
+    if (store.getSettings().minimizeToTray) setupTray();
+    for (const d of store.list('devices')) if (d.cameras) hub.setCameras(d.id, d.cameras);
+    hub.start();
+
+    const win = createWindow();
+    log('UniVMS started', app.getVersion(), 'electron', process.versions.electron);
+
+    if (E2E) {
+      win.webContents.on('console-message', (e, level, message) => {
+        const lvl = typeof e === 'object' && e.level !== undefined ? e.level : level;
+        const msg = typeof e === 'object' && e.message !== undefined ? e.message : message;
+        if (lvl === 'error' || lvl === 3 || lvl === 'warning' || lvl === 2) log('renderer:', msg);
+      });
+      win.webContents.once('did-finish-load', () => setTimeout(() => e2e.run(ctx, win, app).catch((err) => { log('E2E crashed', err.message); app.exit(1); }), 1500));
+    }
+    if (SMOKE) {
+      const errors = [];
+      win.webContents.on('console-message', (e) => {
+        const level = typeof e === 'object' && e.level !== undefined ? e.level : arguments[1];
+        const msg = typeof e === 'object' && e.message !== undefined ? e.message : arguments[2];
+        if (level === 'error' || level === 3) errors.push(msg);
+        else log('renderer:', msg);
+      });
+      setTimeout(async () => {
+        const result = await win.webContents.executeJavaScript('window.__smoke ? window.__smoke() : "no smoke hook"').catch((e) => 'exec error: ' + e.message);
+        log('SMOKE result', result);
+        log('SMOKE ffmpeg', JSON.stringify(require('./ffmpeg').status(store.getSettings())));
+        log('SMOKE console errors', errors.length ? errors : 'none');
+        app.isQuitting = true;
+        app.exit(errors.length || (typeof result === 'string' && /error/i.test(result)) ? 1 : 0);
+      }, 6000);
+    }
+  });
+
+  app.on('activate', () => { if (windows.size === 0) createWindow(); });
+  app.on('window-all-closed', () => { if (process.platform !== 'darwin' && !(tray && store.getSettings().minimizeToTray)) app.quit(); });
+  app.on('before-quit', () => { app.isQuitting = true; });
+  app.on('will-quit', () => { try { hub && hub.stop(); streams && streams.shutdown(); store && store.flush(); } catch (_) {} });
+}
