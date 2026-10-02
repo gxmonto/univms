@@ -1,7 +1,1 @@
-- Two-way audio: talk through Hikvision cameras / NVR speakers from a live tile (microphone button), with device audio played back.
-- Event rules editor for Hikvision channels: motion-detection grid, line-crossing lines and intrusion regions drawn over a snapshot and written back to the device (camera right-click → Event rules).
-- Fisheye dewarping (WebGL): 360° panorama or virtual PTZ per tile, with per-camera center/radius/mount calibration; snapshots capture the dewarped view.
-- "Import encoding channels" in Camera groups, and "Re-import channels" on devices, for rebuilding groups after a device was fixed or a group deleted.
-- Fixed the UI overflowing the window (window controls and right-hand tiles pushed off-screen); module bar uses shorter names and collapses into a single menu button when the window is too narrow; the window is sized to the screen's work area and its position/size are remembered.
-- Shorter, per-vendor port labels in the device dialog; a real tooltip on the empty-tile info icon.
-- Fixed the release script mangling CHANGELOG.md on Windows (CRLF line endings).
+- Two-way audio now maps voice channels the way iVMS does: the microphone on a camera talks to that camera through the NVR (voice channel N+1), falling back to the recorder's own output, and a new "Two-way audio with the recorder" action on the device (right-click, or Remote config) drives speakers connected to the NVR. Per-camera override available in the tile menu; Remote config lists the device's voice channels.
