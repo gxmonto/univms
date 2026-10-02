@@ -12,6 +12,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Secret present?
+        run: |
+          if [ -z "$ASSETS_TOKEN" ]; then echo "ASSETS_TOKEN is EMPTY in this job"; else echo "ASSETS_TOKEN present, length ${#ASSETS_TOKEN}, prefix ${ASSETS_TOKEN:0:7}***"; fi
+        env:
+          ASSETS_TOKEN: ${{ secrets.ASSETS_TOKEN }}
       - name: Fetch SDK runtime with ASSETS_TOKEN
         run: node scripts/fetch-hiksdk.js linux x64
         env:
