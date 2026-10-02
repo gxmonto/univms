@@ -130,7 +130,7 @@ class Updater extends EventEmitter {
     autoUpdater.logger = { info: (m) => this.log('updater', String(m)), warn: (m) => this.log('updater warn', String(m)), error: (m) => this.log('updater error', String(m)), debug: () => {} };
     autoUpdater.autoDownload = this.settings.mode === 'auto';
     autoUpdater.autoInstallOnAppQuit = true;
-    autoUpdater.allowDowngrade = false;
+    autoUpdater.allowDowngrade = true; // follow whatever "latest" is, so a published rollback (lower version) also reaches installed copies
     try { autoUpdater.setFeedURL(this._autoFeed()); } catch (e) { this.log('updater setFeedURL failed', e.message); }
     autoUpdater.on('checking-for-update', () => this._set({ state: 'checking', error: null }));
     autoUpdater.on('update-available', (info) => {

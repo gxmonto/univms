@@ -37,7 +37,7 @@ Version is `1.X.Y`.
 - Two-way audio (Hikvision only): `/ISAPI/System/TwoWayAudio/channels/{id}/open`, chunked PUT + GET of `audioData` in G.711 µ-law/A-law 8 kHz; renderer does capture/codec in `talk.js`. Voice-channel mapping follows iVMS/HCNetSDK: on a recorder channel 1 = the NVR's own audio output (speakers on the NVR, used via device right-click "Two-way audio with the recorder" → `talkbar.js`, id `dev:<deviceId>`), camera N = channel N+1, fallback to channel 1 when the camera has no voice channel; standalone camera = channel 1. Per-camera override stored in `cameraAliases[id].talkChannel`. DW not implemented (API unverified; needs a DW server).
 - Smart rules: GET XML → edit object (fast-xml-parser keeps `@_size` attrs and namespace) → PUT rebuilt XML. Motion grid `gridMap` is hex, `ceil(cols/8)` bytes per row, column 0 = MSB.
 - Fisheye dewarp is purely client-side WebGL (equidistant lens model, 180° FOV); per-camera params stored in `cameraAliases[id].dewarp`.
-- Updates: electron-updater (GitHub provider) for the NSIS build, installed silently with relaunch (`quitAndInstall(true, true)`; the per-user NSIS install needs no UAC); portable/deb/rpm read the GitHub release via API and get a download link. Private repo needs a token in System Config → Updates (or make the repo public). Release notes come from `release-notes.md` → `latest.yml`.
+- Updates: electron-updater (GitHub provider, `allowDowngrade = true` so rollbacks propagate) for the NSIS build, installed silently with relaunch (`quitAndInstall(true, true)`; the per-user NSIS install needs no UAC); portable/deb/rpm read the GitHub release via API and get a download link. Private repo needs a token in System Config → Updates (or make the repo public). Release notes come from `release-notes.md` → `latest.yml`.
 - Frameless window (`frame:false`) with custom min/max/close; `-webkit-app-region: drag` on `#topbar`, `no-drag` on controls. Native `title=` tooltips are unreliable in frameless windows → use CSS tooltips (`data-tip`). Module bar collapses into a menu button when it overflows (ResizeObserver on `#topbar`).
 - Window: sized to the work area and bounds remembered (`store.data.windowBounds`); a frameless window larger than the screen is unusable, which is what the user hit first.
 - "Import encoding channels" (iVMS term) = re-enumerate a device (`devices:refresh`) and add its cameras to a group (`Camera groups → Import encoding channels…`).
@@ -76,7 +76,7 @@ Version is `1.X.Y`.
 
 ## Session log
 
-- **2026-10-02 — reset to 1.0.0**: all earlier releases/tags (v1.0.0…v1.3.3) deleted as test releases; changelog consolidated into one 1.0.0 entry; current build republished as v1.0.0. Installed 1.3.x copies will not auto-downgrade (allowDowngrade=false) — install 1.0.0 manually once.
+- **2026-10-02 — reset to 1.0.0**: all earlier releases/tags (v1.0.0…v1.3.3) deleted as test releases; changelog consolidated into one 1.0.0 entry; current build republished as v1.0.0. Installed 1.3.x copies had allowDowngrade=false and must install 1.0.0 manually once; from 1.0.0 on `allowDowngrade = true`, so publishing a lower version (rollback) is picked up as an update.
 
 - **2026-10-02 — 1.3.2/1.3.3**: repo made public (updates work tokenless), SDK runtime moved to private `univms-assets` with `ASSETS_TOKEN`; manual `check-assets-token` workflow; updater installs silently (`quitAndInstall(true, true)`) and relaunches — user does not want to see the NSIS wizard on updates.
 
