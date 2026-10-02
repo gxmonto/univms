@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Two-way audio now maps voice channels the way iVMS does: the microphone on a camera talks to that camera through the NVR (voice channel N+1), falling back to the recorder's own output, and a new "Two-way audio with the recorder" action on the device (right-click, or Remote config) drives speakers connected to the NVR. Per-camera override available in the tile menu; Remote config lists the device's voice channels.
+
 ## 1.2.0 - 2026-10-02
 
 - Two-way audio: talk through Hikvision cameras / NVR speakers from a live tile (microphone button), with device audio played back.

@@ -19,13 +19,15 @@ const RULES = {
   '/ISAPI/Smart/LineDetection/1': `<?xml version="1.0" encoding="UTF-8"?><LineDetection version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema"><id>1</id><enabled>false</enabled><normalizedScreenSize><normalizedScreenWidth>1000</normalizedScreenWidth><normalizedScreenHeight>1000</normalizedScreenHeight></normalizedScreenSize><LineItemList size="4"><LineItem><id>1</id><enabled>false</enabled><sensitivityLevel>50</sensitivityLevel><directionSensitivity>any</directionSensitivity><CoordinatesList><Coordinates><positionX>200</positionX><positionY>500</positionY></Coordinates><Coordinates><positionX>800</positionX><positionY>500</positionY></Coordinates></CoordinatesList></LineItem></LineItemList></LineDetection>`,
   '/ISAPI/Smart/FieldDetection/1': `<?xml version="1.0" encoding="UTF-8"?><FieldDetection version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema"><id>1</id><enabled>false</enabled><normalizedScreenSize><normalizedScreenWidth>1000</normalizedScreenWidth><normalizedScreenHeight>1000</normalizedScreenHeight></normalizedScreenSize><FieldDetectionRegionList size="4"><FieldDetectionRegion><id>1</id><enabled>false</enabled><sensitivityLevel>50</sensitivityLevel><objectOccupation>1</objectOccupation><timeThreshold>0</timeThreshold><RegionCoordinatesList><RegionCoordinates><positionX>100</positionX><positionY>100</positionY></RegionCoordinates><RegionCoordinates><positionX>900</positionX><positionY>100</positionY></RegionCoordinates><RegionCoordinates><positionX>900</positionX><positionY>900</positionY></RegionCoordinates><RegionCoordinates><positionX>100</positionX><positionY>900</positionY></RegionCoordinates></RegionCoordinatesList></FieldDetectionRegion></FieldDetectionRegionList></FieldDetection>`,
 };
-FIX['/ISAPI/System/TwoWayAudio/channels'] = `<TwoWayAudioChannelList><TwoWayAudioChannel><id>1</id><enabled>true</enabled><audioCompressionType>G.711ulaw</audioCompressionType><audioInputType>MicIn</audioInputType><speakerVolume>50</speakerVolume><audioSamplingRate>8</audioSamplingRate></TwoWayAudioChannel></TwoWayAudioChannelList>`;
+FIX['/ISAPI/System/TwoWayAudio/channels'] = `<TwoWayAudioChannelList><TwoWayAudioChannel><id>1</id><enabled>true</enabled><audioCompressionType>G.711ulaw</audioCompressionType><audioInputType>LineIn</audioInputType><speakerVolume>50</speakerVolume><audioSamplingRate>8</audioSamplingRate></TwoWayAudioChannel><TwoWayAudioChannel><id>2</id><enabled>true</enabled><audioCompressionType>G.711ulaw</audioCompressionType><audioInputType>MicIn</audioInputType><speakerVolume>50</speakerVolume><audioSamplingRate>8</audioSamplingRate></TwoWayAudioChannel></TwoWayAudioChannelList>`;
 
 function startMockIsapi({ rtspPort, eventIntervalMs = 4000 }) {
   const twoWay = { bytesIn: 0, opened: 0, closed: 0 };
   const srv = http.createServer((req, res) => {
     // two-way audio: streaming endpoints must be handled before the body is buffered
-    if (req.url === '/ISAPI/System/TwoWayAudio/channels/1/audioData') {
+    const twm = /^\/ISAPI\/System\/TwoWayAudio\/channels\/(\d+)\/(audioData|open|close)$/.exec(req.url);
+    if (twm && twm[2] === 'audioData') {
+      twoWay.lastChannel = Number(twm[1]);
       if (req.method === 'PUT') { req.on('data', (c) => { twoWay.bytesIn += c.length; }); req.on('end', () => { res.writeHead(200); res.end('<ResponseStatus><statusCode>1</statusCode></ResponseStatus>'); }); return; }
       if (req.method === 'GET') {
         res.writeHead(200, { 'Content-Type': 'application/octet-stream' });
@@ -37,8 +39,8 @@ function startMockIsapi({ rtspPort, eventIntervalMs = 4000 }) {
     let body = '';
     req.on('data', (c) => (body += c));
     req.on('end', () => {
-      if (req.url === '/ISAPI/System/TwoWayAudio/channels/1/open' && req.method === 'PUT') { twoWay.opened++; res.writeHead(200, { 'Content-Type': 'application/xml' }); return res.end('<ResponseStatus><statusCode>1</statusCode><statusString>OK</statusString></ResponseStatus>'); }
-      if (req.url === '/ISAPI/System/TwoWayAudio/channels/1/close' && req.method === 'PUT') { twoWay.closed++; res.writeHead(200, { 'Content-Type': 'application/xml' }); return res.end('<ResponseStatus><statusCode>1</statusCode><statusString>OK</statusString></ResponseStatus>'); }
+      if (twm && twm[2] === 'open' && req.method === 'PUT') { twoWay.opened++; twoWay.openedChannel = Number(twm[1]); res.writeHead(200, { 'Content-Type': 'application/xml' }); return res.end('<ResponseStatus><statusCode>1</statusCode><statusString>OK</statusString></ResponseStatus>'); }
+      if (twm && twm[2] === 'close' && req.method === 'PUT') { twoWay.closed++; res.writeHead(200, { 'Content-Type': 'application/xml' }); return res.end('<ResponseStatus><statusCode>1</statusCode><statusString>OK</statusString></ResponseStatus>'); }
       if (RULES[req.url]) {
         if (req.method === 'PUT') { if (!/^<\?xml/.test(body) || !/<\/(MotionDetection|LineDetection|FieldDetection)>$/.test(body.trim())) { res.writeHead(400); return res.end('<ResponseStatus><statusCode>4</statusCode><statusString>Invalid XML</statusString></ResponseStatus>'); } RULES[req.url] = body; res.writeHead(200, { 'Content-Type': 'application/xml' }); return res.end('<ResponseStatus><statusCode>1</statusCode><statusString>OK</statusString></ResponseStatus>'); }
         res.writeHead(200, { 'Content-Type': 'application/xml' }); return res.end(RULES[req.url]);
@@ -58,7 +60,7 @@ function startMockIsapi({ rtspPort, eventIntervalMs = 4000 }) {
       res.end(fx);
     });
   });
-  return new Promise((resolve) => srv.listen(0, '127.0.0.1', () => resolve({ srv, port: srv.address().port, close: () => srv.close(), twoWay, rules: RULES })));
+  return new Promise((resolve) => srv.listen(0, '127.0.0.1', () => resolve({ srv, port: srv.address().port, close: () => { try { srv.closeAllConnections(); } catch (_) {} srv.close(); }, twoWay, rules: RULES })));
 }
 
 module.exports = { startMockIsapi, FIX, RULES };

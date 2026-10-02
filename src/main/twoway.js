@@ -16,11 +16,20 @@ const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_
 const asArray = (x) => (x === undefined || x === null ? [] : Array.isArray(x) ? x : [x]);
 
 class TwoWayAudioSession extends EventEmitter {
-  constructor(driver, cameraChannel) {
+  /**
+   * target: { cameraChannel, deviceType, channelId }
+   *   - channelId given      -> use it (manual override / "talk to NVR" = 1)
+   *   - NVR/DVR (or >1 channels listed): voice channel 1 is the recorder's own audio output,
+   *     IP camera N is voice channel N+1 (same mapping iVMS / HCNetSDK use)
+   *   - standalone camera: its single channel
+   */
+  constructor(driver, target = {}) {
     super();
     this.driver = driver;
-    this.cameraChannel = Number(cameraChannel) || 1;
+    this.target = typeof target === 'object' ? target : { cameraChannel: target };
+    this.cameraChannel = Number(this.target.cameraChannel) || 1;
     this.channelId = null;
+    this.mapping = null;
     this.codec = 'G.711ulaw';
     this.sampleRate = 8000;
     this.tx = null;
@@ -40,7 +49,7 @@ class TwoWayAudioSession extends EventEmitter {
     } catch (e) {
       throw new Error('Device does not expose two-way audio (' + e.message + ')');
     }
-    const pick = chans.find((c) => Number(c.id) === this.cameraChannel) || chans[0];
+    const pick = this.selectChannel(chans);
     if (!pick) throw new Error('No two-way audio channel on this device');
     this.channelId = Number(pick.id);
     this.codec = pick.audioCompressionType || 'G.711ulaw';
@@ -66,7 +75,22 @@ class TwoWayAudioSession extends EventEmitter {
       res.on('data', (chunk) => { this.bytesIn += chunk.length; this.emit('audio', chunk); });
       res.on('error', () => {});
     }).catch(() => {});
-    return { channelId: this.channelId, codec: /alaw/i.test(this.codec) ? 'alaw' : 'ulaw', sampleRate: this.sampleRate };
+    return { channelId: this.channelId, mapping: this.mapping, codec: /alaw/i.test(this.codec) ? 'alaw' : 'ulaw', sampleRate: this.sampleRate };
+  }
+
+  selectChannel(chans) {
+    const byId = (id) => chans.find((c) => Number(c.id) === Number(id));
+    if (this.target.channelId) { this.mapping = 'manual'; return byId(this.target.channelId) || null; }
+    const isRecorder = /NVR|DVR|HybridNVR|IPC_?NVR|XVR|CVR/i.test(String(this.target.deviceType || '')) || chans.length > 1;
+    if (isRecorder) {
+      const cam = byId(this.cameraChannel + 1);
+      if (cam) { this.mapping = 'camera'; return cam; }
+      // recorder without per-camera voice channels: talk through the recorder's own output, like iVMS does
+      this.mapping = 'recorder';
+      return byId(1) || chans[0];
+    }
+    this.mapping = 'camera';
+    return byId(this.cameraChannel) || chans[0];
   }
 
   send(chunk) {
@@ -86,6 +110,7 @@ class TwoWayAudioSession extends EventEmitter {
     this.closed = true;
     try { this.tx && this.tx.end(); } catch (_) {}
     try { this.rx && this.rx.destroy(); } catch (_) {}
+    const tx = this.tx; setTimeout(() => { try { tx && tx.destroy(); } catch (_) {} }, 500); // do not leave keep-alive sockets behind
     if (this.channelId !== null) {
       try { await this.driver.put(`/ISAPI/System/TwoWayAudio/channels/${this.channelId}/close`, '', { timeout: 6000 }); } catch (_) {}
     }

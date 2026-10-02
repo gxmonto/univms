@@ -43,8 +43,9 @@ function alawToLinear(a) {
 let active = null;
 
 export class TalkSession {
-  constructor(cameraId, { onStatus } = {}) {
+  constructor(cameraId, { onStatus, channelId } = {}) {
     this.cameraId = cameraId;
+    this.opts = channelId ? { channelId } : {};
     this.onStatus = onStatus || (() => {});
     this.ctx = null; this.stream = null; this.proc = null; this.src = null;
     this.codec = 'ulaw'; this.rate = 8000;
@@ -58,7 +59,8 @@ export class TalkSession {
     if (active && active !== this) await active.stop();
     active = this;
     this.onStatus('connecting');
-    const info = await api('twoway:start', this.cameraId);
+    const info = await api('twoway:start', this.cameraId, this.opts || {});
+    this.info = info;
     this.codec = info.codec; this.rate = info.sampleRate || 8000;
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
@@ -104,7 +106,7 @@ export class TalkSession {
     }));
     this.unsubs.push(on('twoway:end', (cameraId, info2) => { if (cameraId === this.cameraId) { this.onStatus('ended', info2 && info2.error); this.stop(false); } }));
     this.running = true;
-    this.onStatus('talking', `${this.codec.toUpperCase()} ${this.rate} Hz`);
+    this.onStatus('talking', `${info.mapping === 'recorder' ? 'via NVR speaker' : info.mapping === 'manual' ? 'voice ch ' + info.channelId : 'camera'} • ${this.codec.toUpperCase()} ${this.rate} Hz`);
     return info;
   }
 

@@ -32,7 +32,7 @@ Version is `1.X.Y`.
 - Video: ffmpeg remuxes RTSP to fragmented MP4 (`-movflags empty_moov+default_base_moof+frag_keyframe -frag_duration 300000`), piped over IPC, played with MSE. H.265 → MSE codec check → automatic transcode restart. No `-tag:v hvc1` (breaks H.264).
 - Hikvision needs the **HTTP/ISAPI port** (80), never the SDK "server port" 8000 (binary HCNetSDK protocol; would need Hikvision's closed native SDK). RTSP port is auto-read from `/ISAPI/Security/adminAccesses`.
 - DW Spectrum: server port 7001, HTTPS, REST v2 session token; RTSP uses the same user/password (local server user needed, cloud 2FA accounts cannot stream).
-- Two-way audio (Hikvision only): `/ISAPI/System/TwoWayAudio/channels/{id}/open`, chunked PUT + GET of `audioData` in G.711 µ-law/A-law 8 kHz; renderer does capture/codec in `talk.js`. DW not implemented (API unverified; needs a DW server).
+- Two-way audio (Hikvision only): `/ISAPI/System/TwoWayAudio/channels/{id}/open`, chunked PUT + GET of `audioData` in G.711 µ-law/A-law 8 kHz; renderer does capture/codec in `talk.js`. Voice-channel mapping follows iVMS/HCNetSDK: on a recorder channel 1 = the NVR's own audio output (speakers on the NVR, used via device right-click "Two-way audio with the recorder" → `talkbar.js`, id `dev:<deviceId>`), camera N = channel N+1, fallback to channel 1 when the camera has no voice channel; standalone camera = channel 1. Per-camera override stored in `cameraAliases[id].talkChannel`. DW not implemented (API unverified; needs a DW server).
 - Smart rules: GET XML → edit object (fast-xml-parser keeps `@_size` attrs and namespace) → PUT rebuilt XML. Motion grid `gridMap` is hex, `ceil(cols/8)` bytes per row, column 0 = MSB.
 - Fisheye dewarp is purely client-side WebGL (equidistant lens model, 180° FOV); per-camera params stored in `cameraAliases[id].dewarp`.
 - Updates: electron-updater (GitHub provider) for the NSIS build; portable/deb/rpm read the GitHub release via API and get a download link. Private repo needs a token in System Config → Updates (or make the repo public). Release notes come from `release-notes.md` → `latest.yml`.
@@ -68,6 +68,8 @@ Version is `1.X.Y`.
 - Make the GitHub repo public or add a token in the app so the update check works.
 
 ## Session log
+
+- **2026-10-02 — 1.2.1**: two-way audio voice-channel mapping like iVMS (camera → N+1, recorder output = 1), "Two-way audio with the recorder" on devices, per-camera target override, voice channel list in Remote config; sockets closed cleanly (`Connection: close`, tx destroy) and unit tests get a 30 s timeout.
 
 - **2026-10-01 — 1.0.0**: full app built (drivers, live view, playback, events, e-map, devices, files, logs, maintenance, settings), tests, installers (win/deb/rpm), GitHub repo + CI/release workflows, versioning scripts.
 - **2026-10-02 — 1.1.0**: auto-update (electron-updater + manual links), frameless title bar, device right-click menus, drag & drop fix (`draggable=""`), per-vendor port labels, centered empty-tile placeholder, friendlier device edit flow. Note: user felt the bump should have been weighed more carefully → rule above.

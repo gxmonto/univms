@@ -185,9 +185,9 @@ function register(ctx) {
   h('devices:syncTime', (_e, id) => pool.get(id).setTimeNow());
   h('devices:reboot', (_e, id) => pool.get(id).reboot());
   h('devices:logs', (_e, { id, start, end }) => pool.get(id).logs(start, end));
-  h('devices:setCameraAlias', (_e, { cameraId, name, hidden, dewarp }) => {
+  h('devices:setCameraAlias', (_e, { cameraId, name, hidden, dewarp, talkChannel }) => {
     const cur = store.data.cameraAliases[cameraId] || {};
-    store.data.cameraAliases[cameraId] = { ...cur, ...(name !== undefined ? { name } : {}), ...(hidden !== undefined ? { hidden } : {}), ...(dewarp !== undefined ? { dewarp } : {}) };
+    store.data.cameraAliases[cameraId] = { ...cur, ...(name !== undefined ? { name } : {}), ...(hidden !== undefined ? { hidden } : {}), ...(dewarp !== undefined ? { dewarp } : {}), ...(talkChannel !== undefined ? { talkChannel } : {}) };
     store.save();
     broadcast('devices:changed');
     return store.data.cameraAliases[cameraId];
@@ -196,12 +196,37 @@ function register(ctx) {
   // ---------- two-way audio (Hikvision) ----------
   const talks = new Map(); // `${wcId}|${cameraId}` -> session
   const talkKey = (e, cameraId) => `${e.sender.id}|${cameraId}`;
-  h('twoway:start', async (e, cameraId) => {
-    const { dev, driver, channel } = camInfo(cameraId);
+  // id is a cameraId, or "dev:<deviceId>" to talk through the recorder's own audio output (speakers on the NVR)
+  const talkTarget = (id, opts = {}) => {
+    if (String(id).startsWith('dev:')) {
+      const deviceId = String(id).slice(4);
+      const dev = store.getDevice(deviceId);
+      if (!dev) throw new Error('Device not found');
+      return { dev, driver: pool.get(deviceId), target: { channelId: opts.channelId || 1, deviceType: (dev.info && dev.info.deviceType) || 'NVR' } };
+    }
+    const { dev, driver, channel } = camInfo(id);
+    const alias = store.data.cameraAliases[id] || {};
+    return { dev, driver, target: { cameraChannel: channel, deviceType: (dev.info && dev.info.deviceType) || '', channelId: opts.channelId || alias.talkChannel || undefined } };
+  };
+  h('twoway:channels', async (_e, deviceId) => {
+    const dev = store.getDevice(deviceId);
+    if (!dev || dev.type !== 'hikvision') return [];
+    const drv = pool.get(deviceId);
+    const x = await drv.xml('/ISAPI/System/TwoWayAudio/channels');
+    const list = x.TwoWayAudioChannelList ? [].concat(x.TwoWayAudioChannelList.TwoWayAudioChannel || []) : [];
+    const cams = hub.cameraCache.get(deviceId) || dev.cameras || [];
+    return list.map((c) => {
+      const id = Number(c.id);
+      const cam = cams.find((k) => Number(k.channel) === id - 1);
+      return { id, codec: c.audioCompressionType, enabled: c.enabled, inputType: c.audioInputType, speakerVolume: c.speakerVolume, label: id === 1 && (list.length > 1 || /NVR|DVR|XVR/i.test((dev.info && dev.info.deviceType) || '')) ? `${dev.name} audio output (speaker on the recorder)` : cam ? `${cam.name} (camera ${cam.channel})` : `Voice channel ${id}` };
+    });
+  });
+  h('twoway:start', async (e, cameraId, opts) => {
+    const { dev, driver, target } = talkTarget(cameraId, opts || {});
     if (dev.type !== 'hikvision') throw new Error('Two-way audio is currently supported for Hikvision devices only');
     const key = talkKey(e, cameraId);
     const old = talks.get(key); if (old) await old.close();
-    const s = new TwoWayAudioSession(driver, channel);
+    const s = new TwoWayAudioSession(driver, target);
     talks.set(key, s);
     const wc = e.sender;
     s.on('audio', (chunk) => { if (!wc.isDestroyed()) wc.send('twoway:data', cameraId, chunk); });
@@ -229,7 +254,7 @@ function register(ctx) {
       const cams = hub.cameraCache.get(d.id) || d.cameras || [];
       for (const c of cams) {
         const alias = store.data.cameraAliases[c.id] || {};
-        out.push({ ...c, name: alias.name || c.name, originalName: c.name, hidden: !!alias.hidden, deviceName: d.name, deviceType: d.type });
+        out.push({ ...c, name: alias.name || c.name, originalName: c.name, hidden: !!alias.hidden, dewarp: alias.dewarp, talkChannel: alias.talkChannel, deviceName: d.name, deviceType: d.type });
       }
     }
     return out;

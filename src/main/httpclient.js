@@ -153,7 +153,7 @@ function streamRequest(urlStr, { method = 'PUT', headers = {}, auth, timeout = 0
   const lib = isHttps ? https : http;
   const key = `${u.protocol}//${u.host}`;
   const uri = u.pathname + u.search;
-  const h = { 'User-Agent': 'UniVMS/1.0', Accept: '*/*', ...headers };
+  const h = { 'User-Agent': 'UniVMS/1.0', Accept: '*/*', Connection: 'close', ...headers };
   if (auth && auth.type === 'basic') h.Authorization = 'Basic ' + Buffer.from(`${auth.username}:${auth.password}`).toString('base64');
   else if (auth && auth.type === 'bearer') h.Authorization = `Bearer ${auth.token}`;
   else if (auth && auth.type === 'digest') {

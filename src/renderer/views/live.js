@@ -79,6 +79,7 @@ function createTile(i) {
       cam && { label: tile.stream === 'main' ? 'Switch to sub stream' : 'Switch to main stream', icon: 'swap', onClick: () => setStream(tile, tile.stream === 'main' ? 'sub' : 'main') },
       cam && { label: tile.audio ? 'Mute' : 'Enable audio', icon: 'audio', onClick: () => setAudio(tile, !tile.audio) },
       cam && { label: tile.talk ? 'Stop talking' : 'Talk (two-way audio)', icon: 'mic', onClick: () => toggleTalk(tile) },
+      cam && deviceById(cam.deviceId) && deviceById(cam.deviceId).type === 'hikvision' && { label: 'Two-way audio target…', icon: 'audio', onClick: () => talkTargetDialog(cam) },
       cam && { label: 'Fisheye dewarp settings…', icon: 'fisheye', onClick: () => dewarpSettings(tile) },
       cam && deviceById(cam.deviceId) && deviceById(cam.deviceId).type === 'hikvision' && { label: 'Event rules (motion / line / intrusion)…', icon: 'alert', onClick: () => openRulesEditor(cam.id) },
       cam && { label: 'Open in playback', icon: 'playback', onClick: () => window.__navigate('playback', { cameraId: cam.id }) },
@@ -203,6 +204,17 @@ async function toggleTalk(tile) {
   tile.talk = session;
   try { await session.start(); toast('Two-way audio active. Click the microphone again to stop.', 'ok'); }
   catch (e) { tile.talk = null; tile.talkBtn.classList.remove('talk'); toast('Two-way audio: ' + e.message, 'err', 6000); }
+}
+
+/** Override of the automatic (iVMS-style) voice channel mapping for one camera. */
+async function talkTargetDialog(cam) {
+  let channels = [];
+  try { channels = await api('twoway:channels', cam.deviceId); } catch (e) { toast('Could not read two-way audio channels: ' + e.message, 'err'); return; }
+  const current = cam.talkChannel || '';
+  const sel = el('select', {}, el('option', { value: '', selected: !current }, 'Automatic (like iVMS: this camera through the NVR)'), ...channels.map((c) => el('option', { value: c.id, selected: String(current) === String(c.id) }, `${c.id}: ${c.label}${c.codec ? ' • ' + c.codec : ''}`)));
+  modal({ title: `Two-way audio target — ${cam.name}`, body: el('div', { class: 'col' }, el('label', { class: 'field' }, 'Voice channel used by the microphone button on this camera', sel),
+    el('div', { class: 'dim small' }, channels.length ? `The device reports ${channels.length} voice channel(s). Automatic uses channel ${Number(cam.channel) + 1} on a recorder (camera ${cam.channel}) or channel 1 on a standalone camera.` : 'The device reports no two-way audio channels.')),
+    buttons: [{ label: 'Cancel' }, { label: 'Save', primary: true, onClick: async (close) => { await api('devices:setCameraAlias', { cameraId: cam.id, talkChannel: sel.value ? Number(sel.value) : null }); close(); } }] });
 }
 
 // ---------- fisheye dewarp ----------

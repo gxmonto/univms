@@ -147,6 +147,7 @@ export function deviceMenuItems(dev, cams, opts = {}) {
     { label: 'Edit device…', icon: 'edit', onClick: () => run('editDevice', dev) },
     { label: 'Rename…', icon: 'edit', onClick: () => run('renameDevice', dev) },
     { label: 'Remote configuration…', icon: 'settings', onClick: () => run('remoteConfig', dev) },
+    dev.type === 'hikvision' && { label: 'Two-way audio with the recorder (speaker on the NVR)', icon: 'mic', onClick: () => import('./talkbar.js').then((m) => m.talkToDevice(dev)) },
     { label: 'Re-import channels (refresh camera list)', icon: 'refresh', onClick: async () => { try { const r = await api('devices:refresh', dev.id); toast(`${dev.name}: ${r.cameras.length} channel(s) imported`, 'ok'); } catch (e) { toast(e.message, 'err'); } } },
     '-',
     { label: 'Delete device', icon: 'trash', danger: true, onClick: () => run('deleteDevice', dev) },

@@ -306,3 +306,7 @@ table.grid tr.selected td { background: rgba(47,143,255,.14); }
 .about { max-width: 720px; }
 .about .ver { color: var(--text-2); }
 code { font-family: var(--mono); background: var(--bg-3); padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+
+/* device-level two-way audio bar */
+.talk-bar { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; background: var(--bg-3); border: 1px solid #2f6b45; border-left: 4px solid var(--ok); border-radius: 8px; padding: 8px 14px; z-index: 950; box-shadow: 0 10px 30px rgba(0,0,0,.5); animation: slidein .2s ease-out; }
+.talk-bar svg { color: var(--ok); }
