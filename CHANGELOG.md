@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-- Hikvision SDK connection type (server port 8000, exactly like iVMS-4200): login, live view and playback (SDK stream piped into ffmpeg), two-way audio with the SDK's own voice-channel numbering, alarms, snapshots and all ISAPI configuration tunnelled through port 8000. Choose "Connection: Hikvision SDK / server port" in the device dialog. The free Device Network SDK is downloaded at build time (`scripts/fetch-hiksdk.js`) and bundled as `resources/hiksdk`.
+## 1.3.0 - 2026-10-02
 
+- Hikvision SDK connection type (server port 8000, exactly like iVMS-4200): login, live view and playback (SDK stream piped into ffmpeg), two-way audio with the SDK's own voice-channel numbering, alarms, snapshots and all ISAPI configuration tunnelled through port 8000. Choose "Connection: Hikvision SDK / server port" in the device dialog. The free Device Network SDK is downloaded at build time (`scripts/fetch-hiksdk.js`) and bundled as `resources/hiksdk`.
 ## 1.2.1 - 2026-10-02
 
 - Two-way audio now maps voice channels the way iVMS does: the microphone on a camera talks to that camera through the NVR (voice channel N+1), falling back to the recorder's own output, and a new "Two-way audio with the recorder" action on the device (right-click, or Remote config) drives speakers connected to the NVR. Per-camera override available in the tile menu; Remote config lists the device's voice channels.
