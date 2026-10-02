@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Hik-Connect / Guarding Vision dialog (device right-click or Remote config): service status, enable/disable, set the verification code, and the device QR code (serial number, same as the device label) to scan in the mobile app, with PNG export and print.
+- Hik-Connect / Guarding Vision dialog (device right-click or Remote config): service status, enable/disable, set the verification code, and the device QR code in the label format (serial number plus verification code, so the app fills both; Hik-Connect/Guarding Vision or EZVIZ layout) with PNG export and print.
 - SDK connection: live view and playback now read Hikvision's private PS stream from the RealPlay/playback callbacks (the "standard stream" callback delivers RTP packets, which ffmpeg could not parse); two-way audio over the SDK sends G.711 in 160-byte frames and plays the PCM the SDK returns.
 - Stream failures are written to the main log (ffmpeg exit code, bytes in/out, last error lines).
 

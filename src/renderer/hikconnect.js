@@ -10,11 +10,21 @@ export async function openHikConnect(dev) {
   body.innerHTML = '';
 
   const qrImg = el('img', { style: { width: '260px', height: '260px', background: '#fff', borderRadius: '8px', padding: '8px', display: 'block' }, alt: 'QR code' });
-  const renderQr = async () => { try { qrImg.src = await api('hikconnect:qr', { text: st.serial }); } catch (e) { toast('QR: ' + e.message, 'err'); } };
-  renderQr();
+  // Same layout as the label on the device: service URL, full serial, verification code, each ending with CR.
+  // Hik-Connect / Guarding Vision fill both fields from it; without a code the QR carries only the serial.
+  const BRANDS = { hik: ['Hik-Connect / Guarding Vision', 'www.hik-connect.com'], ezviz: ['EZVIZ', 'www.ezviz7.com'] };
+  const brand = el('select', { onChange: () => renderQr() }, ...Object.entries(BRANDS).map(([k, [label]]) => el('option', { value: k }, label)));
+  const qrText = () => { const c = code.value.trim(); return c ? `${BRANDS[brand.value][1]}${st.serial}${c}` : st.serial; };
+  const qrNote = el('div', { class: 'dim small' });
+  let qrTimer = null;
+  const renderQr = async () => {
+    try { qrImg.src = await api('hikconnect:qr', { text: qrText() }); } catch (e) { toast('QR: ' + e.message, 'err'); }
+    qrNote.textContent = code.value.trim() ? 'Contains the serial number and the verification code — the app fills both. Keep this QR private.' : 'Contains the serial number only; the app will ask for the verification code. Enter the code above to include it.';
+  };
 
   const enabled = el('input', { type: 'checkbox', checked: !!st.enabled });
-  const code = el('input', { type: 'text', placeholder: st.verificationCodeReadable ? '' : 'not readable from the device — enter a new one to change it', value: st.verificationCode || '', maxlength: 12, style: { width: '100%' } });
+  const code = el('input', { type: 'text', placeholder: st.verificationCodeReadable ? '' : 'not readable from the device — type it to include it in the QR / change it', value: st.verificationCode || '', maxlength: 12, style: { width: '100%' }, onInput: () => { clearTimeout(qrTimer); qrTimer = setTimeout(renderQr, 250); } });
+  renderQr();
   const save = btn('Save to device', { cls: 'primary', icon: 'save' }, async () => {
     try {
       const c = code.value.trim();
@@ -42,9 +52,9 @@ export async function openHikConnect(dev) {
       el('label', { class: 'field', style: { marginTop: '8px' } }, 'Device verification code (needed when adding the device in the app)', code),
       el('div', { class: 'row', style: { marginTop: '10px' } }, save),
       el('p', { class: 'dim small' }, 'In Hik-Connect or Guarding Vision: Add Device → Scan QR code → scan the code on the right (same as the label on the device), then enter the verification code. The device must be online with the service enabled.')),
-    el('div', {}, el('h3', {}, 'Device QR code'), qrImg,
+    el('div', {}, el('h3', {}, 'Device QR code'), el('label', { class: 'field', style: { marginBottom: '8px' } }, 'App', brand), qrImg, qrNote,
       el('div', { class: 'row', style: { marginTop: '8px' } },
-        btn('Save PNG…', { cls: 'sm', icon: 'download' }, async () => { try { const f = await api('hikconnect:saveQr', { deviceId: dev.id, text: st.serial }); if (f) toast('Saved ' + f, 'ok'); } catch (e) { toast(e.message, 'err'); } }),
+        btn('Save PNG…', { cls: 'sm', icon: 'download' }, async () => { try { const f = await api('hikconnect:saveQr', { deviceId: dev.id, text: qrText() }); if (f) toast('Saved ' + f, 'ok'); } catch (e) { toast(e.message, 'err'); } }),
         btn('Print', { cls: 'sm' }, () => printQr(dev, st, qrImg.src))))));
 }
 
