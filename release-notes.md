@@ -1,1 +1,7 @@
-- Maintenance release.
+- Automatic update checks against GitHub Releases with a "new version" dialog that shows the release notes, download progress and a restart prompt; the portable exe and Linux packages get a direct download link. New *Updates* section in System Config (policy, server, token, check now, release notes) and a "What's new" screen after upgrading.
+- Frameless window with minimize / maximize / close in the app's own title bar; double-click the bar to maximize.
+- Right-click menus on devices (tree and device table): open all cameras, edit, rename, remote configuration, refresh cameras, delete.
+- Fixed drag & drop from the camera tree into live view, playback and e-maps (the draggable attribute was emitted as an empty string, which disables dragging).
+- The device dialog now labels the port correctly per vendor: HTTP/ISAPI port for Hikvision, server port for DW Spectrum, and explains which one is needed.
+- Empty live-view windows show a centered placeholder with an info icon instead of a clipped label.
+- Saving an edited device no longer looks like a failure: the dialog closes, the connection is retried and the result is reported in a toast with guidance.

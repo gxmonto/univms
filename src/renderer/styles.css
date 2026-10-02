@@ -29,7 +29,8 @@ a { color: var(--accent); }
 ::-webkit-scrollbar-track { background: transparent; }
 svg { width: 1.2em; height: 1.2em; vertical-align: -0.25em; }
 
-#app { display: grid; grid-template-rows: 46px 1fr 24px; height: 100vh; }
+/* minmax(0,1fr): an implicit auto column would be sized to the top bar's min-content width and overflow the window */
+#app { display: grid; grid-template-rows: 46px 1fr 24px; grid-template-columns: minmax(0, 1fr); height: 100vh; width: 100vw; }
 #topbar { display: flex; align-items: center; gap: 16px; padding: 0 0 0 12px; background: var(--bg-2); border-bottom: 1px solid var(--line); -webkit-app-region: drag; user-select: none; }
 #topbar button, #topbar input, #topbar select, #topbar a { -webkit-app-region: no-drag; }
 .win-controls { display: inline-flex; height: 46px; margin-left: 6px; }
@@ -42,10 +43,13 @@ body.fullscreen .win-controls { display: none; }
 .brand .logo { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg, var(--accent), #7cc4ff); box-shadow: 0 0 0 2px rgba(47,143,255,.25); display: inline-block; position: relative; }
 .brand .logo::after { content: ""; position: absolute; inset: 7px; background: var(--bg-2); border-radius: 3px; }
 .brand .tag { font-size: 11px; color: var(--text-3); font-weight: 400; }
-#nav { display: flex; gap: 2px; flex: 1; overflow-x: auto; -webkit-app-region: no-drag; }
-#nav button { background: transparent; border: 0; color: var(--text-2); padding: 7px 12px; border-radius: var(--radius); cursor: pointer; display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+#nav { display: flex; gap: 2px; flex: 1; min-width: 0; overflow: hidden; -webkit-app-region: no-drag; }
+#nav button { background: transparent; border: 0; color: var(--text-2); padding: 7px 9px; border-radius: var(--radius); cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 #nav button:hover { background: var(--bg-3); color: var(--text); }
 #nav button.active { background: var(--bg-4); color: #fff; }
+#nav .nav-menu { display: none; }
+#nav.collapsed > button.view { display: none; }
+#nav.collapsed > .nav-menu { display: flex; }
 #nav button svg { width: 17px; height: 17px; }
 .top-right { display: flex; align-items: center; gap: 6px; }
 .top-right .user { color: var(--text-3); font-size: 12px; margin-left: 6px; }
@@ -172,6 +176,12 @@ table.grid tr.selected td { background: rgba(47,143,255,.14); }
 .tile .empty-hint svg { width: 26px; height: 26px; opacity: .25; }
 .tile .hint-info { position: absolute; right: 6px; top: 6px; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line); color: var(--text-3); font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; cursor: help; background: var(--bg-2); opacity: .6; }
 .tile .hint-info:hover { opacity: 1; color: var(--text); }
+/* CSS tooltip (native title tooltips are unreliable in frameless windows) */
+.tile .hint-info::after { content: attr(data-tip); position: absolute; right: 0; top: 24px; background: var(--bg-4); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; font-size: 12px; font-weight: 400; white-space: nowrap; display: none; z-index: 5; box-shadow: 0 6px 18px rgba(0,0,0,.5); }
+.tile .hint-info:hover::after { display: block; }
+.tile canvas.dewarp { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; }
+.tile canvas.dewarp:active { cursor: grabbing; }
+.tile .tools button.talk { color: #6fe09a; background: rgba(55,196,107,.2); }
 .tile video.hidden { display: none; }
 .tile .name { position: absolute; top: 0; left: 0; right: 0; padding: 3px 8px; background: linear-gradient(rgba(0,0,0,.65), transparent); font-size: 12px; display: flex; gap: 8px; align-items: center; pointer-events: none; }
 .tile .name .st { color: var(--text-2); font-size: 11px; margin-left: auto; }

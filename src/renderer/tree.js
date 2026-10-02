@@ -52,6 +52,7 @@ export function createCameraTree(container, opts = {}) {
         { label: cam.hidden ? 'Unhide camera' : 'Hide camera', icon: cam.hidden ? 'eye' : 'eyeoff', onClick: () => api('devices:setCameraAlias', { cameraId: cam.id, hidden: !cam.hidden }) },
         { label: 'Snapshot from device', icon: 'snapshot', onClick: async () => { try { const r = await api('files:saveDeviceSnapshot', { cameraId: cam.id }); toast('Saved ' + r.file, 'ok'); } catch (err) { toast(err.message, 'err'); } } },
         { label: 'Camera details', icon: 'info', onClick: () => showCameraInfo(cam) },
+        (deviceById(cam.deviceId) || {}).type === 'hikvision' ? { label: 'Event rules (motion / line / intrusion)…', icon: 'alert', onClick: () => import('./rules.js').then((m) => m.openRulesEditor(cam.id)) } : null,
       ];
       if (opts.extraContext) items.push(...opts.extraContext(cam));
       contextMenu(e.clientX, e.clientY, items);
@@ -146,7 +147,7 @@ export function deviceMenuItems(dev, cams, opts = {}) {
     { label: 'Edit device…', icon: 'edit', onClick: () => run('editDevice', dev) },
     { label: 'Rename…', icon: 'edit', onClick: () => run('renameDevice', dev) },
     { label: 'Remote configuration…', icon: 'settings', onClick: () => run('remoteConfig', dev) },
-    { label: 'Refresh camera list', icon: 'refresh', onClick: async () => { try { const r = await api('devices:refresh', dev.id); toast(`${dev.name}: ${r.cameras.length} cameras`, 'ok'); } catch (e) { toast(e.message, 'err'); } } },
+    { label: 'Re-import channels (refresh camera list)', icon: 'refresh', onClick: async () => { try { const r = await api('devices:refresh', dev.id); toast(`${dev.name}: ${r.cameras.length} channel(s) imported`, 'ok'); } catch (e) { toast(e.message, 'err'); } } },
     '-',
     { label: 'Delete device', icon: 'trash', danger: true, onClick: () => run('deleteDevice', dev) },
   ];

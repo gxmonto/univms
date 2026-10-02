@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, Menu, Tray, nativeImage, protocol, safeStorage, shell, net } = require('electron');
+const { app, BrowserWindow, Menu, Tray, nativeImage, protocol, safeStorage, shell, net, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -21,7 +21,11 @@ protocol.registerSchemesAsPrivileged([{ scheme: 'univms-map', privileges: { stan
 const SMOKE = !!process.env.UNIVMS_SMOKE;
 const E2E = !!process.env.UNIVMS_E2E;
 let e2e = null;
-if (E2E) { e2e = require('../../tests/e2e/harness'); e2e.prepare(app); }
+if (E2E) {
+  e2e = require('../../tests/e2e/harness'); e2e.prepare(app);
+  app.commandLine.appendSwitch('use-fake-device-for-media-stream');
+  app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
+}
 const logBuffer = [];
 function log(...args) {
   const line = `[${new Date().toISOString()}] ${args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')}`;
@@ -44,8 +48,16 @@ if (!gotLock && !SMOKE && !E2E) {
 
   function createWindow(params = {}) {
     const s = store.getSettings();
+    // Fit the default size to the work area (a frameless window larger than the screen cannot be moved or resized
+    // by the user) and restore the main window's last position/size when it is still on a connected display.
+    const wa = screen.getPrimaryDisplay().workAreaSize;
+    let bounds = { width: Math.min(params.width || 1480, wa.width - 24), height: Math.min(params.height || 900, wa.height - 24) };
+    const saved = !params.aux && store.data.windowBounds;
+    if (saved && saved.width && screen.getAllDisplays().some((d) => saved.x >= d.bounds.x - 50 && saved.x < d.bounds.x + d.bounds.width && saved.y >= d.bounds.y - 50 && saved.y < d.bounds.y + d.bounds.height)) {
+      bounds = { x: saved.x, y: saved.y, width: Math.min(saved.width, wa.width), height: Math.min(saved.height, wa.height) };
+    }
     const win = new BrowserWindow({
-      width: params.width || 1480, height: params.height || 900, minWidth: 980, minHeight: 620,
+      ...bounds, minWidth: 900, minHeight: 600,
       backgroundColor: '#0f1318', title: 'UniVMS', show: false, autoHideMenuBar: true,
       frame: false, // custom title bar with min/max/close in the renderer (same as TwinLine)
       icon: path.join(__dirname, '..', '..', 'build', process.platform === 'win32' ? 'icon.ico' : 'icons/256x256.png'),
@@ -59,6 +71,12 @@ if (!gotLock && !SMOKE && !E2E) {
     if (params.aux) q.set('aux', '1');
     if (params.view) q.set('view', params.view);
     win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'), { query: Object.fromEntries(q) });
+    if (!params.aux) {
+      if (saved && saved.maximized) win.maximize();
+      let saveTimer = null;
+      const remember = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() => { if (win.isDestroyed()) return; const b = win.getNormalBounds(); store.data.windowBounds = { ...b, maximized: win.isMaximized() }; store.save(); }, 400); };
+      win.on('resize', remember); win.on('move', remember); win.on('maximize', remember); win.on('unmaximize', remember);
+    }
     win.once('ready-to-show', () => {
       win.show();
       if (s.startFullscreen && !params.aux) win.setFullScreen(true);

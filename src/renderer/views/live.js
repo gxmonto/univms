@@ -3,6 +3,9 @@ import { api, state, bus, emit, el, svg, btn, toast, modal, confirm, promptText,
 import { createCameraTree, DT_CAMERA, DT_DEVICE, DT_GROUP, showCameraInfo } from '../tree.js';
 import { Player } from '../player.js';
 import { createPtzPanel } from '../ptz.js';
+import { TalkSession } from '../talk.js';
+import { Dewarper, DEFAULT_DEWARP } from '../dewarp.js';
+import { openRulesEditor } from '../rules.js';
 
 export const LAYOUTS = {
   '1': { n: 1, cols: 1, rows: 1 },
@@ -40,9 +43,9 @@ function createTile(i) {
   const msg = el('div', { class: 'msg hidden' });
   const spinner = el('div', { class: 'spinner hidden' });
   const hint = el('div', { class: 'empty-hint' }, svg('camera'));
-  const hintInfo = el('div', { class: 'hint-info', title: 'Drag a camera, a whole device or a group from the tree onto this window, or double-click a camera in the tree to play it in the selected window.' }, 'i');
+  const hintInfo = el('div', { class: 'hint-info', dataset: { tip: 'Drag a camera here, or double-click one in the tree' } }, 'i');
   const tools = el('div', { class: 'tools hidden' });
-  const tile = { i, cameraId: null, stream: state.settings.defaultStream || 'sub', audio: false, player: null, zoom: null, el: null, video, nameEl, label, statusEl, recEl, msg, spinner, hint, tools, recording: false, ptz3d: false };
+  const tile = { i, cameraId: null, stream: state.settings.defaultStream || 'sub', audio: false, player: null, zoom: null, el: null, video, nameEl, label, statusEl, recEl, msg, spinner, hint, tools, recording: false, ptz3d: false, talk: null, dewarp: null, dewarpCanvas: null };
   const t = el('div', { class: 'tile', dataset: { idx: i } }, video, hint, hintInfo, nameEl, msg, spinner, tools);
   tile.el = t;
   tile.hintInfo = hintInfo;
@@ -54,9 +57,12 @@ function createTile(i) {
   tile.recBtn = tb('record', 'Start/stop local recording', () => toggleRecord(tile));
   tile.zoomBtn = tb('zoom', 'Digital zoom (wheel to zoom, drag to pan)', () => toggleZoom(tile));
   tile.ptzBtn = tb('ptz', 'PTZ control (opens panel; drag a box on video for 3D positioning on Hikvision)', () => { selectTile(i); togglePtzPanel(true); tile.ptz3d = !tile.ptz3d; tile.ptzBtn.classList.toggle('on', tile.ptz3d); });
+  tile.talkBtn = tb('mic', 'Two-way audio: talk through the camera / NVR speaker (click to start, click again to stop)', () => toggleTalk(tile));
+  tile.fishBtn = tb('fisheye', 'Fisheye dewarp: off → panorama → virtual PTZ (right-click for settings)', () => cycleDewarp(tile));
+  tile.fishBtn.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); dewarpSettings(tile); });
   tools.append(
     tb('snapshot', 'Snapshot', () => snapshot(tile)),
-    tile.recBtn, tile.audioBtn, streamBtn, tile.zoomBtn, tile.ptzBtn,
+    tile.recBtn, tile.audioBtn, streamBtn, tile.zoomBtn, tile.ptzBtn, tile.talkBtn, tile.fishBtn,
     tb('fullscreen', 'Maximize / restore (double-click)', () => toggleMaximize(i)),
     tb('close', 'Stop', () => clearTile(i)),
   );
@@ -72,6 +78,9 @@ function createTile(i) {
       cam && { label: tile.recording ? 'Stop recording' : 'Start local recording', icon: 'record', onClick: () => toggleRecord(tile) },
       cam && { label: tile.stream === 'main' ? 'Switch to sub stream' : 'Switch to main stream', icon: 'swap', onClick: () => setStream(tile, tile.stream === 'main' ? 'sub' : 'main') },
       cam && { label: tile.audio ? 'Mute' : 'Enable audio', icon: 'audio', onClick: () => setAudio(tile, !tile.audio) },
+      cam && { label: tile.talk ? 'Stop talking' : 'Talk (two-way audio)', icon: 'mic', onClick: () => toggleTalk(tile) },
+      cam && { label: 'Fisheye dewarp settings…', icon: 'fisheye', onClick: () => dewarpSettings(tile) },
+      cam && deviceById(cam.deviceId) && deviceById(cam.deviceId).type === 'hikvision' && { label: 'Event rules (motion / line / intrusion)…', icon: 'alert', onClick: () => openRulesEditor(cam.id) },
       cam && { label: 'Open in playback', icon: 'playback', onClick: () => window.__navigate('playback', { cameraId: cam.id }) },
       cam && { label: 'Camera details', icon: 'info', onClick: () => showCameraInfo(cam) },
       cam && '-',
@@ -153,7 +162,7 @@ function toggleZoom(tile) {
 }
 
 function setTileStatus(tile, status, detail) {
-  tile.statusEl.textContent = status === 'playing' ? detail : status === 'idle' ? '' : status;
+  tile.statusEl.textContent = (tile.talk ? 'TALKING • ' : '') + (status === 'playing' ? detail : status === 'idle' ? '' : status);
   tile.spinner.classList.toggle('hidden', !['connecting', 'buffering', 'reconnecting'].includes(status));
   tile.msg.classList.toggle('hidden', !(status === 'error' || status === 'reconnecting'));
   tile.msg.classList.toggle('err', status === 'error');
@@ -175,13 +184,89 @@ export function assign(i, cameraId, stream) {
   tile.player = new Player(tile.video, { cameraId, stream: tile.stream, kind: 'live', audio: tile.audio, onStatus: (s, d) => setTileStatus(tile, s, d) });
   tile.player.start();
   state.playing.add(cameraId);
+  const alias = (cam && cam.id && (state.cameras.find((c) => c.id === cam.id) || {})) || {};
+  const dw = cam.dewarp || alias.dewarp;
+  if (dw && dw.mode && dw.mode !== 'off') setDewarp(tile, dw.mode, dw);
   emit('playing');
   persistState();
+}
+
+// ---------- two-way audio ----------
+async function toggleTalk(tile) {
+  if (!tile.cameraId) return;
+  if (tile.talk) { await tile.talk.stop(); return; }
+  for (const t of tiles) if (t.talk) await t.talk.stop();
+  const session = new TalkSession(tile.cameraId, { onStatus: (s, d) => {
+    if (s === 'idle' || s === 'ended') { tile.talk = null; tile.talkBtn.classList.remove('talk'); tile.statusEl.textContent = tile.player ? tile.player.detailText() : ''; if (s === 'ended' && d) toast('Two-way audio ended: ' + d, 'warn'); }
+    else { tile.talkBtn.classList.add('talk'); tile.statusEl.textContent = s === 'talking' ? `TALKING • ${d}` : 'connecting audio…'; }
+  } });
+  tile.talk = session;
+  try { await session.start(); toast('Two-way audio active. Click the microphone again to stop.', 'ok'); }
+  catch (e) { tile.talk = null; tile.talkBtn.classList.remove('talk'); toast('Two-way audio: ' + e.message, 'err', 6000); }
+}
+
+// ---------- fisheye dewarp ----------
+function setDewarp(tile, mode, params) {
+  if (mode === 'off') {
+    if (tile.dewarp) { tile.dewarp.stop(); tile.dewarp = null; }
+    if (tile.dewarpCanvas) { tile.dewarpCanvas.remove(); tile.dewarpCanvas = null; }
+    tile.video.style.opacity = '';
+    tile.fishBtn.classList.remove('on');
+    return;
+  }
+  if (!tile.dewarpCanvas) {
+    const c = el('canvas', { class: 'dewarp' });
+    tile.el.insertBefore(c, tile.nameEl);
+    tile.dewarpCanvas = c;
+    let drag = null;
+    c.addEventListener('pointerdown', (e) => { if (e.button !== 0) return; drag = { x: e.clientX, y: e.clientY, pan: tile.dewarp.p.pan, tilt: tile.dewarp.p.tilt }; c.setPointerCapture(e.pointerId); e.stopPropagation(); });
+    c.addEventListener('pointermove', (e) => { if (!drag || !tile.dewarp) return; const dx = (e.clientX - drag.x) / c.clientWidth, dy = (e.clientY - drag.y) / c.clientHeight; tile.dewarp.set({ pan: drag.pan - dx * Math.PI, tilt: Math.max(0, Math.min(1.5, drag.tilt - dy * 1.5)) }); });
+    c.addEventListener('pointerup', () => { if (drag) saveDewarp(tile); drag = null; });
+    c.addEventListener('wheel', (e) => { if (!tile.dewarp || tile.dewarp.p.mode !== 'ptz') return; e.preventDefault(); e.stopPropagation(); tile.dewarp.set({ fov: Math.max(0.3, Math.min(2.4, tile.dewarp.p.fov * (e.deltaY < 0 ? 0.9 : 1.1))) }); saveDewarp(tile); }, { passive: false });
+    c.addEventListener('dblclick', (e) => e.stopPropagation());
+  }
+  if (!tile.dewarp) {
+    try { tile.dewarp = new Dewarper(tile.video, tile.dewarpCanvas, params || {}); tile.dewarp.start(); }
+    catch (e) { toast('Fisheye dewarp unavailable: ' + e.message, 'err'); setDewarp(tile, 'off'); return; }
+  }
+  tile.dewarp.set({ ...(params || {}), mode });
+  tile.video.style.opacity = '0';
+  tile.fishBtn.classList.add('on');
+  tile.fishBtn.title = `Fisheye: ${mode === 'panorama' ? '360° panorama' : 'virtual PTZ (drag to look around, wheel to zoom)'} — click for next mode, right-click for settings`;
+}
+function cycleDewarp(tile) {
+  if (!tile.cameraId) return;
+  const cur = tile.dewarp ? tile.dewarp.p.mode : 'off';
+  const next = cur === 'off' ? 'panorama' : cur === 'panorama' ? 'ptz' : 'off';
+  const cam = cameraById(tile.cameraId) || {};
+  setDewarp(tile, next, { ...(cam.dewarp || {}) });
+  saveDewarp(tile);
+}
+function saveDewarp(tile) {
+  if (!tile.cameraId) return;
+  const p = tile.dewarp ? { ...tile.dewarp.p } : { ...DEFAULT_DEWARP, mode: 'off' };
+  clearTimeout(tile._dwSave);
+  tile._dwSave = setTimeout(() => api('devices:setCameraAlias', { cameraId: tile.cameraId, dewarp: p }).catch(() => {}), 500);
+}
+function dewarpSettings(tile) {
+  if (!tile.cameraId) return;
+  const cam = cameraById(tile.cameraId) || {};
+  const p = { ...DEFAULT_DEWARP, ...(cam.dewarp || {}), ...(tile.dewarp ? tile.dewarp.p : {}) };
+  const apply = () => { if (tile.dewarp) tile.dewarp.set(p); else if (p.mode !== 'off') setDewarp(tile, p.mode, p); saveDewarp(tile); };
+  const slider = (label, key, min, max, step) => { const out = el('span', { class: 'dim small' }, Number(p[key]).toFixed(2)); return el('label', { class: 'field' }, el('span', {}, label, ' ', out), el('input', { type: 'range', min, max, step, value: p[key], onInput: (e) => { p[key] = Number(e.target.value); out.textContent = p[key].toFixed(2); apply(); } })); };
+  modal({ title: `Fisheye dewarp — ${cam.name || ''}`, body: el('div', { class: 'col' },
+    el('label', { class: 'field' }, 'Mode', el('select', { onChange: (e) => { p.mode = e.target.value; setDewarp(tile, p.mode, p); saveDewarp(tile); } }, ...[['off', 'Off (original fisheye image)'], ['panorama', '360° panorama strip'], ['ptz', 'Virtual PTZ (drag to look around, wheel to zoom)']].map(([v, l]) => el('option', { value: v, selected: p.mode === v }, l)))),
+    el('label', { class: 'field' }, 'Mount', el('select', { onChange: (e) => { p.mount = e.target.value; apply(); } }, ...[['ceiling', 'Ceiling'], ['table', 'Table / desk'], ['wall', 'Wall']].map(([v, l]) => el('option', { value: v, selected: p.mount === v }, l)))),
+    slider('Image circle center X', 'cx', 0.2, 0.8, 0.005), slider('Image circle center Y', 'cy', 0.2, 0.8, 0.005), slider('Image circle radius (of width)', 'r', 0.2, 0.6, 0.005),
+    el('div', { class: 'dim small' }, 'Adjust center and radius until the edge of the fisheye circle lines up with the picture edge in panorama mode. Settings are saved per camera.')),
+    buttons: [{ label: 'Reset', left: true, onClick: () => { Object.assign(p, DEFAULT_DEWARP, { mode: p.mode }); apply(); return false; } }, { label: 'Close', primary: true }] });
 }
 
 export function clearTile(i) {
   const tile = tiles[i];
   if (!tile) return;
+  if (tile.talk) { tile.talk.stop().catch(() => {}); tile.talk = null; }
+  setDewarp(tile, 'off');
   if (tile.player) { tile.player.destroy(); tile.player = null; }
   stopRecordingIfAny(tile);
   if (tile.cameraId) { state.playing.delete(tile.cameraId); }
@@ -230,9 +315,9 @@ function setAudio(tile, on) {
 }
 async function snapshot(tile) {
   if (!tile.player) return;
-  const url = tile.player.snapshotDataUrl();
+  const url = tile.dewarp ? tile.dewarp.snapshotDataUrl() : tile.player.snapshotDataUrl();
   if (!url) { toast('No frame yet', 'warn'); return; }
-  try { const r = await api('files:saveSnapshot', { cameraId: tile.cameraId, dataUrl: url }); toast('Snapshot saved: ' + r.file, 'ok'); } catch (e) { toast(e.message, 'err'); }
+  try { const r = await api('files:saveSnapshot', { cameraId: tile.cameraId, dataUrl: url, suffix: tile.dewarp ? '_dewarp' : '' }); toast('Snapshot saved: ' + r.file, 'ok'); } catch (e) { toast(e.message, 'err'); }
 }
 async function toggleRecord(tile) {
   if (!tile.cameraId) return;
@@ -452,7 +537,7 @@ export function mount(container, p = {}) {
 export function unmount() {
   stopTour(false);
   if (tree) { tree.destroy(); tree = null; }
-  for (const t of tiles) { if (t.player) t.player.destroy(); stopRecordingIfAny(t); }
+  for (const t of tiles) { if (t.talk) t.talk.stop().catch(() => {}); if (t.dewarp) t.dewarp.stop(); if (t.player) t.player.destroy(); stopRecordingIfAny(t); }
   state.playing.clear();
   tiles = [];
   for (const u of unsubs) u();

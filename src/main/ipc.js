@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const { TYPES, splitCameraId } = require('./drivers');
 const ffmpegBin = require('./ffmpeg');
 const discovery = require('./discovery');
+const { TwoWayAudioSession } = require('./twoway');
 
 function ts(d = new Date()) {
   const p = (n) => String(n).padStart(2, '0');
@@ -54,7 +55,7 @@ function register(ctx) {
     // Section of CHANGELOG.md for a version (bundled with the app)
     for (const p of [path.join(app.getAppPath(), 'CHANGELOG.md'), path.join(__dirname, '..', '..', 'CHANGELOG.md')]) {
       try {
-        const text = fs.readFileSync(p, 'utf8');
+        const text = fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
         const re = new RegExp(`^## ${String(version).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))`, 'm');
         const m = re.exec(text);
         if (m) return m[1].trim();
@@ -184,13 +185,39 @@ function register(ctx) {
   h('devices:syncTime', (_e, id) => pool.get(id).setTimeNow());
   h('devices:reboot', (_e, id) => pool.get(id).reboot());
   h('devices:logs', (_e, { id, start, end }) => pool.get(id).logs(start, end));
-  h('devices:setCameraAlias', (_e, { cameraId, name, hidden }) => {
+  h('devices:setCameraAlias', (_e, { cameraId, name, hidden, dewarp }) => {
     const cur = store.data.cameraAliases[cameraId] || {};
-    store.data.cameraAliases[cameraId] = { ...cur, ...(name !== undefined ? { name } : {}), ...(hidden !== undefined ? { hidden } : {}) };
+    store.data.cameraAliases[cameraId] = { ...cur, ...(name !== undefined ? { name } : {}), ...(hidden !== undefined ? { hidden } : {}), ...(dewarp !== undefined ? { dewarp } : {}) };
     store.save();
     broadcast('devices:changed');
     return store.data.cameraAliases[cameraId];
   });
+
+  // ---------- two-way audio (Hikvision) ----------
+  const talks = new Map(); // `${wcId}|${cameraId}` -> session
+  const talkKey = (e, cameraId) => `${e.sender.id}|${cameraId}`;
+  h('twoway:start', async (e, cameraId) => {
+    const { dev, driver, channel } = camInfo(cameraId);
+    if (dev.type !== 'hikvision') throw new Error('Two-way audio is currently supported for Hikvision devices only');
+    const key = talkKey(e, cameraId);
+    const old = talks.get(key); if (old) await old.close();
+    const s = new TwoWayAudioSession(driver, channel);
+    talks.set(key, s);
+    const wc = e.sender;
+    s.on('audio', (chunk) => { if (!wc.isDestroyed()) wc.send('twoway:data', cameraId, chunk); });
+    s.on('error', (err) => { log('twoway error', err.message); if (!wc.isDestroyed()) wc.send('twoway:end', cameraId, { error: err.message }); });
+    s.on('closed', () => { if (talks.get(key) === s) talks.delete(key); if (!wc.isDestroyed()) wc.send('twoway:end', cameraId, {}); });
+    try { return await s.open(); } catch (err) { talks.delete(key); throw err; }
+  });
+  h('twoway:send', (e, cameraId, chunk) => { const s = talks.get(talkKey(e, cameraId)); if (s) s.send(chunk); return !!s; });
+  h('twoway:stop', async (e, cameraId) => { const s = talks.get(talkKey(e, cameraId)); if (s) await s.close(); return true; });
+  h('twoway:active', () => [...talks.keys()]);
+
+  // ---------- smart event rules (Hikvision) ----------
+  const rulesDriver = (cameraId) => { const { dev, driver, channel } = camInfo(cameraId); if (dev.type !== 'hikvision') throw new Error('Event rules can be edited on Hikvision devices only'); return { driver, channel }; };
+  h('rules:caps', (_e, cameraId) => { const { driver, channel } = rulesDriver(cameraId); return driver.ruleCapabilities(channel); });
+  h('rules:get', (_e, { cameraId, kind }) => { const { driver, channel } = rulesDriver(cameraId); return driver.getRule(kind, channel); });
+  h('rules:set', (_e, { cameraId, kind, config }) => { const { driver, channel } = rulesDriver(cameraId); return driver.setRule(kind, channel, config).then(() => true); });
 
   // ---------- discovery ----------
   h('discovery:scan', (_e, opts) => discovery.discover(opts || {}));

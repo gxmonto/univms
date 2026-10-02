@@ -1,5 +1,5 @@
 // Application shell: navigation, login lock, alarm popups, status bar
-import { api, on, state, bus, emit, loadAll, el, svg, toast, iconBtn, modal, beep, fmtTime, cameraById } from './core.js';
+import { api, on, state, bus, emit, loadAll, el, svg, toast, iconBtn, modal, beep, fmtTime, cameraById, contextMenu } from './core.js';
 import * as live from './views/live.js';
 import * as playback from './views/playback.js';
 import * as events from './views/events.js';
@@ -13,15 +13,15 @@ import * as about from './views/about.js';
 import { initUpdates } from './updates.js';
 
 const VIEWS = [
-  { id: 'live', label: 'Main View', icon: 'live', mod: live },
-  { id: 'playback', label: 'Remote Playback', icon: 'playback', mod: playback },
-  { id: 'events', label: 'Event Center', icon: 'events', mod: events },
+  { id: 'live', label: 'Main View', short: 'Live View', icon: 'live', mod: live },
+  { id: 'playback', label: 'Remote Playback', short: 'Playback', icon: 'playback', mod: playback },
+  { id: 'events', label: 'Event Center', short: 'Events', icon: 'events', mod: events },
   { id: 'emap', label: 'E-map', icon: 'emap', mod: emap },
-  { id: 'devices', label: 'Device Management', icon: 'devices', mod: devices },
-  { id: 'files', label: 'Local Files', icon: 'files', mod: files },
-  { id: 'logs', label: 'Log Search', icon: 'logs', mod: logs },
+  { id: 'devices', label: 'Device Management', short: 'Devices', icon: 'devices', mod: devices },
+  { id: 'files', label: 'Local Files', short: 'Files', icon: 'files', mod: files },
+  { id: 'logs', label: 'Log Search', short: 'Logs', icon: 'logs', mod: logs },
   { id: 'maintenance', label: 'Maintenance', icon: 'maintenance', mod: maintenance },
-  { id: 'settings', label: 'System Config', icon: 'settings', mod: settings },
+  { id: 'settings', label: 'System Config', short: 'Settings', icon: 'settings', mod: settings },
   { id: 'about', label: 'About', icon: 'info', mod: about, hidden: true },
 ];
 
@@ -39,7 +39,8 @@ export function navigate(id, p = {}) {
     if (current && current.mod.unmount) { try { current.mod.unmount(); } catch (e) { console.error('unmount failed', current.id, e); } }
     viewRoot.innerHTML = '';
     current = v;
-    for (const b of nav.children) b.classList.toggle('active', b.dataset.id === v.id);
+    for (const b of nav.children) if (b.dataset.id) b.classList.toggle('active', b.dataset.id === v.id);
+    const cur = nav.querySelector('.nav-menu .cur'); if (cur) cur.textContent = v.label;
     try { await v.mod.mount(viewRoot, p); } catch (e) { console.error('mount failed', v.id, e); toast(`Failed to open ${v.label}: ${e.message}`, 'err'); }
     localStorage.setItem('app.lastView', v.id);
   }).catch((e) => console.error(e));
@@ -50,8 +51,21 @@ window.__navigate = navigate;
 function buildNav() {
   nav.innerHTML = '';
   for (const v of VIEWS.filter((x) => !x.hidden)) {
-    nav.append(el('button', { dataset: { id: v.id }, onClick: () => navigate(v.id) }, svg(v.icon), v.label));
+    nav.append(el('button', { class: 'view', dataset: { id: v.id }, title: v.label, onClick: () => navigate(v.id) }, svg(v.icon), v.short || v.label));
   }
+  // Compact mode (narrow windows, like iVMS' module menu): one button that opens the list of modules
+  const menuBtn = el('button', { class: 'nav-menu active', onClick: (e) => {
+    const r = menuBtn.getBoundingClientRect();
+    contextMenu(r.left, r.bottom + 4, VIEWS.filter((x) => !x.hidden).map((v) => ({ label: `${v.id === (current && current.id) ? '✓ ' : ''}${v.label}`, icon: v.icon, onClick: () => navigate(v.id) })));
+  } }, svg('menu'), el('span', { class: 'cur' }, 'Main View'), el('span', { class: 'dim' }, '▾'));
+  nav.append(menuBtn);
+  const fit = () => {
+    nav.classList.remove('collapsed');
+    const overflow = nav.scrollWidth > nav.clientWidth + 2;
+    nav.classList.toggle('collapsed', overflow);
+  };
+  new ResizeObserver(fit).observe(document.getElementById('topbar'));
+  setTimeout(fit, 0);
 }
 
 // ---------- alarm popups ----------

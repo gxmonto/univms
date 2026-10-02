@@ -38,7 +38,7 @@ if (!dry) {
 
 // CHANGELOG: move "## Unreleased" content under the new version
 const clPath = path.join(root, 'CHANGELOG.md');
-let changelog = fs.existsSync(clPath) ? fs.readFileSync(clPath, 'utf8') : '# Changelog\n\n## Unreleased\n';
+let changelog = (fs.existsSync(clPath) ? fs.readFileSync(clPath, 'utf8') : '# Changelog\n\n## Unreleased\n').replace(/\r\n/g, '\n'); // CRLF-safe
 const m = /^## Unreleased[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(changelog);
 const body = m && m[1].trim() ? m[1].trim() : '- Maintenance release.';
 const date = new Date().toISOString().slice(0, 10);

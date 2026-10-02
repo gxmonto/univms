@@ -142,4 +142,27 @@ class HttpError extends Error {
   }
 }
 
-module.exports = { request, rawRequest, HttpError, parseAuthHeader, digestAuthorization, _challenges: challenges };
+/**
+ * Long-lived request whose body is written by the caller (e.g. Hikvision two-way audio PUT audioData).
+ * Digest: uses the challenge cached by an earlier request to the same host (callers do a normal request first).
+ * Resolves immediately with { req, response } where response is a promise of the IncomingMessage.
+ */
+function streamRequest(urlStr, { method = 'PUT', headers = {}, auth, timeout = 0 } = {}) {
+  const u = new URL(urlStr);
+  const isHttps = u.protocol === 'https:';
+  const lib = isHttps ? https : http;
+  const key = `${u.protocol}//${u.host}`;
+  const uri = u.pathname + u.search;
+  const h = { 'User-Agent': 'UniVMS/1.0', Accept: '*/*', ...headers };
+  if (auth && auth.type === 'basic') h.Authorization = 'Basic ' + Buffer.from(`${auth.username}:${auth.password}`).toString('base64');
+  else if (auth && auth.type === 'bearer') h.Authorization = `Bearer ${auth.token}`;
+  else if (auth && auth.type === 'digest') {
+    const ch = challenges.get(key);
+    if (ch) h.Authorization = digestAuthorization(ch, method, uri, auth.username, auth.password);
+  }
+  const req = lib.request({ method, hostname: u.hostname, port: u.port || (isHttps ? 443 : 80), path: uri, headers: h, rejectUnauthorized: false, timeout });
+  const response = new Promise((resolve, reject) => { req.on('response', resolve); req.on('error', reject); });
+  return { req, response };
+}
+
+module.exports = { request, rawRequest, streamRequest, HttpError, parseAuthHeader, digestAuthorization, _challenges: challenges };

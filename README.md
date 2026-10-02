@@ -8,6 +8,9 @@ Multi-vendor video management client (iVMS-4200 style) for **Hikvision** NVRs / 
 | --- | --- |
 | Main View | 1/4/6/8/9/10/13/16/25/36/64 and custom N×M layouts, drag & drop from the camera tree (camera, whole device or group), tile swap, maximize, per-tile snapshot / local recording / audio / main-sub stream / digital zoom, saved views, startup view, view tour (auto-switch), auxiliary windows for multi-monitor walls |
 | PTZ | 8-way pan/tilt, zoom, focus, iris, speed, presets (go/set/delete), patrols/tours, light & wiper aux, Hikvision 3D positioning by dragging a box on the video |
+| Two-way audio | Talk through a Hikvision camera/NVR speaker from the live tile (G.711 over ISAPI), device audio played back |
+| Event rules | Edit Hikvision motion-detection grid, line-crossing lines and intrusion regions on a snapshot and write them to the device |
+| Fisheye | Client-side WebGL dewarping of fisheye cameras: 360° panorama or virtual PTZ with per-camera calibration |
 | Remote Playback | Calendar with recording days, timeline with continuous / motion / alarm / event colouring and DW bookmarks, wheel-zoom and drag, click-to-seek, 1 or 4 synchronous cameras, speed 0.25×–8×, snapshots, in/out marks and MP4 clip export |
 | Event Center | Hikvision alert stream (motion, line crossing, intrusion, alarm input, video loss, tamper, disk…) and DW Spectrum event log, device online/offline monitoring, popup with snapshot + sound, acknowledge, jump to live or playback |
 | E-map | Floor plan images with camera hotspots, flashing on alarm, click for live popup |
@@ -63,17 +66,6 @@ Both commands work from Windows, macOS or Linux:
 
 The Linux packages install to `/opt/UniVMS`, add `/usr/bin/univms`, a desktop entry and hicolor icons, and set the SUID bit on `chrome-sandbox` in post-install. If you prefer a native Linux build, `scripts/build-linux-wsl.sh` runs the full electron-builder flow inside WSL/any Linux host.
 
-## Versioning and releases
-
-Versions are `1.X.Y` and follow the project's own rule, not textbook semver:
-
-| Change | Bump | Command | Example |
-| --- | --- | --- | --- |
-| Major change (new feature area, new driver, packaging change) | second number, third resets | `npm run release:major` | 1.2.3 → 1.3.0 |
-| Minor change (fix, small enhancement, UI tweak) | third number | `npm run release:minor` | 1.2.3 → 1.2.4 |
-
-Add a bullet under *Unreleased* in `CHANGELOG.md` for every change. The release script requires a clean tree, moves the *Unreleased* notes under the new version, commits `Release vX.Y.Z` and tags `vX.Y.Z`. Pushing the tag (`git push --follow-tags`, or add `-- --push` to the release command) runs `.github/workflows/release.yml`, which builds the Windows installer and the `.deb`/`.rpm` on GitHub runners and publishes them as a GitHub release with the changelog section as notes. `ci.yml` runs the unit tests on every push and pull request.
-
 ## Device notes
 
 * **Hikvision**: use the HTTP(S) port (default 80). The RTSP port is read from the device (`/ISAPI/Security/adminAccesses`); override it in the device dialog if NAT-forwarded. Enable *Hikvision-CGI* / *ISAPI* and digest authentication on the device (default). Events come from `/ISAPI/Event/notification/alertStream`; make sure the events you want are armed on the NVR.
@@ -82,4 +74,4 @@ Add a bullet under *Unreleased* in `CHANGELOG.md` for every change. The release 
 
 ## Not included (yet)
 
-Two-way audio, Hikvision smart-event rule editing, fisheye dewarping, access-control/intercom modules.
+Access-control / intercom modules (need a Hikvision access controller or intercom to develop against) and two-way audio for DW Spectrum servers (needs a DW server to verify the audio API).

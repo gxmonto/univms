@@ -352,6 +352,36 @@ class HikvisionDevice {
     return out;
   }
 
+  // ---------- smart event rules (motion / line crossing / intrusion) ----------
+  // Configurations are read as XML, edited as objects and written back with the same structure,
+  // so unknown device-specific fields survive the round trip.
+  async getRule(kind, channel) {
+    const p = this.rulePath(kind, channel);
+    const res = await this.get(p);
+    return { xml: res.text, config: parser.parse(res.text), path: p };
+  }
+  async setRule(kind, channel, config) {
+    const { XMLBuilder } = require('fast-xml-parser');
+    const builder = new XMLBuilder({ ignoreAttributes: false, attributeNamePrefix: '@_', suppressEmptyNode: false, format: false });
+    let xml = builder.build(config);
+    if (!/^<\?xml/.test(xml)) xml = '<?xml version="1.0" encoding="UTF-8"?>' + xml;
+    return this.put(this.rulePath(kind, channel), xml, { timeout: 15000 });
+  }
+  rulePath(kind, channel) {
+    if (kind === 'motion') return `/ISAPI/System/Video/inputs/channels/${channel}/motionDetection`;
+    if (kind === 'line') return `/ISAPI/Smart/LineDetection/${channel}`;
+    if (kind === 'intrusion') return `/ISAPI/Smart/FieldDetection/${channel}`;
+    throw new Error('Unknown rule kind ' + kind);
+  }
+  /** Which smart rules the channel supports (capability probes). */
+  async ruleCapabilities(channel) {
+    const out = {};
+    for (const [kind, p] of [['motion', this.rulePath('motion', channel)], ['line', this.rulePath('line', channel)], ['intrusion', this.rulePath('intrusion', channel)]]) {
+      try { await this.get(p, { timeout: 6000 }); out[kind] = true; } catch (_) { out[kind] = false; }
+    }
+    return out;
+  }
+
   // ---------- events (multipart alert stream) ----------
   /**
    * Opens /ISAPI/Event/notification/alertStream and calls onEvent for each alert.

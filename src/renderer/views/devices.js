@@ -11,7 +11,7 @@ export function editDevice(dev = null, prefill = {}) {
   const d = { type: 'hikvision', port: 80, https: false, username: 'admin', ...(dev || {}), ...prefill };
   const f = {};
   const inp = (key, attrs = {}) => (f[key] = el('input', { type: 'text', value: d[key] !== undefined && d[key] !== null ? d[key] : '', ...attrs }));
-  const portLabelFor = (type) => (type === 'dwspectrum' ? 'Server port (DW Spectrum, usually 7001)' : 'HTTP port (the web/ISAPI port of the NVR, usually 80 — not RTSP 554 or SDK 8000)');
+  const portLabelFor = (type) => (type === 'dwspectrum' ? 'Server port (usually 7001)' : 'HTTP port (usually 80) — not the SDK/server port 8000');
   f.type = el('select', { onChange: () => { const t = types.find((x) => x.id === f.type.value); if (t && (!f.port.value || types.some((x) => String(x.defaultPort) === f.port.value))) f.port.value = t.defaultPort; f.https.checked = f.type.value === 'dwspectrum'; httpsLbl.classList.toggle('hidden', f.type.value === 'dwspectrum'); portLabel.firstChild.textContent = portLabelFor(f.type.value); } }, ...types.map((t) => el('option', { value: t.id, selected: t.id === d.type }, t.label)));
   inp('name', { placeholder: 'Front office NVR' });
   inp('host', { placeholder: '192.168.1.100 or hostname' });
@@ -139,7 +139,9 @@ function renderGroups(root) {
     content.append(el('div', { class: 'row' }, el('h2', { class: 'grow' }, sel.name), btn('Rename', { cls: 'sm', icon: 'edit' }, async () => { const n = await promptText('Rename group', 'Name', sel.name); if (n) { sel.name = n; await api('groups:save', sel); await loadAll(); renderList(); renderContent(); } }), btn('Delete group', { cls: 'sm danger', icon: 'trash' }, async () => { if (await confirm(`Delete group "${sel.name}"?`, { danger: true, okLabel: 'Delete' })) { await api('groups:remove', sel.id); await loadAll(); sel = state.groups[0] || null; renderList(); renderContent(); } })),
       el('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '10px' } },
         el('div', {}, el('h3', {}, 'Members'), members),
-        el('div', {}, el('h3', {}, 'Add cameras (double-click, or select several and click Add)'), picker, el('div', { class: 'row', style: { marginTop: '8px' } }, btn('Add selected', { cls: 'sm primary', icon: 'plus' }, async () => { const ids = t.selected().filter((id) => !(sel.cameras || []).includes(id)); if (!ids.length) return; sel.cameras = [...(sel.cameras || []), ...ids]; await api('groups:save', sel); await loadAll(); renderList(); renderContent(); })))));
+        el('div', {}, el('h3', {}, 'Add cameras (double-click, or select several and click Add)'), picker, el('div', { class: 'row', style: { marginTop: '8px' } },
+          btn('Add selected', { cls: 'sm primary', icon: 'plus' }, async () => { const ids = t.selected().filter((id) => !(sel.cameras || []).includes(id)); if (!ids.length) return; sel.cameras = [...(sel.cameras || []), ...ids]; await api('groups:save', sel); await loadAll(); renderList(); renderContent(); }),
+          btn('Import encoding channels…', { cls: 'sm', icon: 'upload', title: 'Add every channel of a device to this group (like iVMS "Import encoding channels")' }, () => importChannels(sel, async () => { await loadAll(); renderList(); renderContent(); }))))));
   };
   side.append(el('div', { class: 'side-head' }, svg('folder'), el('span', { class: 'grow' }, 'Camera groups'), el('button', { class: 'icon-btn', title: 'New group', onClick: async () => { const n = await promptText('New group', 'Group name', `Group ${state.groups.length + 1}`); if (n) { sel = await api('groups:save', { name: n, cameras: [] }); await loadAll(); renderList(); renderContent(); } } }, svg('plus'))), list);
   root.append(side, content);
@@ -156,7 +158,7 @@ function renderDevices(root) {
     el('div', { class: 'sep' }),
     btn('Edit', { icon: 'edit' }, () => { const d = state.devices.find((x) => x.id === selectedId); if (d) editDevice(d); else toast('Select a device', 'warn'); }),
     btn('Remote config', { icon: 'settings' }, () => { const d = state.devices.find((x) => x.id === selectedId); if (d) remoteConfig(d); else toast('Select a device', 'warn'); }),
-    btn('Refresh cameras', { icon: 'refresh' }, async () => { const d = state.devices.find((x) => x.id === selectedId); try { if (d) { const r = await api('devices:refresh', d.id); toast(`${d.name}: ${r.cameras.length} cameras`, 'ok'); } else { setStatus('Refreshing all devices…'); const r = await api('devices:refreshAll'); toast(Object.entries(r).map(([k, v]) => `${(state.devices.find((x) => x.id === k) || {}).name}: ${v}`).join('\n'), 'ok', 6000); } } catch (e) { toast(e.message, 'err'); } }),
+    btn('Re-import channels', { icon: 'refresh', title: 'Enumerate the encoding channels again (after fixing a device or changing cameras on the NVR)' }, async () => { const d = state.devices.find((x) => x.id === selectedId); try { if (d) { const r = await api('devices:refresh', d.id); toast(`${d.name}: ${r.cameras.length} cameras`, 'ok'); } else { setStatus('Refreshing all devices…'); const r = await api('devices:refreshAll'); toast(Object.entries(r).map(([k, v]) => `${(state.devices.find((x) => x.id === k) || {}).name}: ${v}`).join('\n'), 'ok', 6000); } } catch (e) { toast(e.message, 'err'); } }),
     btn('Delete', { cls: 'danger', icon: 'trash' }, async () => { const d = state.devices.find((x) => x.id === selectedId); if (!d) return toast('Select a device', 'warn'); if (await confirm(`Remove ${d.name} and all of its cameras from UniVMS?`, { danger: true, okLabel: 'Remove' })) { await api('devices:remove', d.id); selectedId = null; toast('Device removed', 'ok'); } }),
     el('div', { class: 'spacer' }),
     el('span', { class: 'dim small' }, `${state.devices.length} devices • ${state.cameras.length} cameras`));
@@ -191,6 +193,33 @@ export async function renameDevice(d) {
   const n = await promptText('Rename device', 'Device name', d.name);
   if (n && n.trim() && n.trim() !== d.name) { await api('devices:save', { id: d.id, name: n.trim() }); toast('Renamed', 'ok'); }
 }
+/** iVMS-style "Import encoding channels": re-enumerate a device and add all (or all online) channels to a group. */
+async function importChannels(group, done) {
+  if (!state.devices.length) return toast('Add a device first', 'warn');
+  const dev = el('select', {}, ...state.devices.map((d) => el('option', { value: d.id }, d.name)));
+  const refresh = el('input', { type: 'checkbox', checked: true });
+  const onlyOnline = el('input', { type: 'checkbox' });
+  const includeHidden = el('input', { type: 'checkbox' });
+  modal({ title: `Import encoding channels into "${group.name}"`, body: el('div', { class: 'col' },
+    el('label', { class: 'field' }, 'Device', dev),
+    el('label', { class: 'check' }, refresh, 'Re-read the channel list from the device first'),
+    el('label', { class: 'check' }, onlyOnline, 'Only channels that are online'),
+    el('label', { class: 'check' }, includeHidden, 'Include hidden channels'),
+    el('div', { class: 'dim small' }, 'Channels already in the group are skipped. Channels are never duplicated or removed by this action.')),
+    buttons: [{ label: 'Cancel' }, { label: 'Import', primary: true, onClick: async (close) => {
+      try {
+        if (refresh.checked) await api('devices:refresh', dev.value);
+        await loadAll();
+        const cams = state.cameras.filter((c) => c.deviceId === dev.value && (!onlyOnline.checked || c.online !== false) && (includeHidden.checked || !c.hidden));
+        const ids = cams.map((c) => c.id).filter((id) => !(group.cameras || []).includes(id));
+        group.cameras = [...(group.cameras || []), ...ids];
+        await api('groups:save', group);
+        toast(`Imported ${ids.length} channel(s) (${cams.length - ids.length} already present)`, 'ok');
+        close(); done && done();
+      } catch (e) { toast('Import failed: ' + e.message, 'err', 6000); return false; }
+    } }] });
+}
+
 // make device actions available to the camera tree in other views (right-click menus)
 Object.assign(actions, { editDevice: (d) => { if (!types.length) api('devices:types').then((t) => { types = t; editDevice(d); }); else editDevice(d); }, remoteConfig, deleteDevice, renameDevice });
 

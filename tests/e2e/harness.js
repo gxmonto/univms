@@ -86,6 +86,36 @@ async function run(ctx, win, app) {
     })()`);
     await sleep(300);
     results.winControls = await js(`!!document.getElementById('win-close') && getComputedStyle(document.getElementById('topbar')).getPropertyValue('-webkit-app-region')`);
+    // two-way audio with the fake microphone (Chromium --use-fake-device-for-media-stream)
+    try {
+      await js(`document.querySelector('.tile .tools button[title^="Two-way audio"]').click()`);
+      await sleep(2500);
+      results.talkStatus = await js(`document.querySelector('.tile .name .st').textContent`);
+      results.talkBytesAtDevice = mock.twoWay.bytesIn;
+      await js(`document.querySelector('.tile .tools button[title^="Two-way audio"]').click()`);
+      await sleep(600);
+      results.talkClosed = mock.twoWay.closed;
+    } catch (e) { results.talkError = e.message; }
+    // event rules editor opens and reads the motion grid from the device
+    try {
+      await js(`import('./rules.js').then((m) => m.openRulesEditor(${JSON.stringify(cams[0].id)}))`);
+      await sleep(2000);
+      results.rulesTabs = await js(`[...document.querySelectorAll('.modal .tabs button')].map((b) => b.textContent)`);
+      results.rulesMotionEnabled = await js(`(() => { const c = document.querySelector('.modal input[type=checkbox]'); return c ? c.checked : null; })()`);
+      await shot('03b-rules-editor');
+      await js(`document.querySelector('.modal .m-head .icon-btn').click()`);
+      await sleep(300);
+    } catch (e) { results.rulesError = e.message; }
+    // narrow window: module bar must collapse into the menu button and the window controls stay visible
+    const [bw, bh] = win.getSize();
+    win.setSize(1000, 700);
+    await sleep(600);
+    results.navCollapsedNarrow = await js(`document.getElementById('nav').classList.contains('collapsed')`);
+    results.closeVisibleNarrow = await js(`(() => { const r = document.getElementById('win-close').getBoundingClientRect(); return r.right <= window.innerWidth && r.width > 0; })()`);
+    await shot('03c-narrow');
+    win.setSize(bw, bh);
+    await sleep(600);
+    results.navExpandedWide = await js(`!document.getElementById('nav').classList.contains('collapsed')`);
     await shot('03-live-playing');
     // playback view and event center for visual check
     await js(`window.__navigate('playback', { cameraId: ${JSON.stringify(cams[0].id)} })`); await sleep(1500); await shot('04-playback');
@@ -111,7 +141,7 @@ async function run(ctx, win, app) {
   }
   log('E2E RESULTS', results);
   fs.writeFileSync(path.join(outDir, 'results.json'), JSON.stringify(results, null, 2));
-  const pass = results.deviceAdded && results.cameras > 0 && results.livePlaying && results.mapImageWidth > 0 && results.mapHotspots === 1 && results.events > 0 && results.treeDraggable === 'true' && results.dropAssigned === true && !results.error;
+  const pass = results.deviceAdded && results.cameras > 0 && results.livePlaying && results.mapImageWidth > 0 && results.mapHotspots === 1 && results.events > 0 && results.treeDraggable === 'true' && results.dropAssigned === true && results.talkBytesAtDevice > 0 && results.talkClosed === 1 && Array.isArray(results.rulesTabs) && results.rulesTabs.length === 3 && results.navCollapsedNarrow === true && results.closeVisibleNarrow === true && results.navExpandedWide === true && !results.error;
   log(pass ? 'E2E PASS' : 'E2E FAIL');
   app.isQuitting = true;
   app.exit(pass ? 0 : 1);

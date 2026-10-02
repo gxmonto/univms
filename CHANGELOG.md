@@ -2,12 +2,15 @@
 
 ## Unreleased
 
+- Two-way audio: talk through Hikvision cameras / NVR speakers from a live tile (microphone button), with device audio played back.
+- Event rules editor for Hikvision channels: motion-detection grid, line-crossing lines and intrusion regions drawn over a snapshot and written back to the device (camera right-click → Event rules).
+- Fisheye dewarping (WebGL): 360° panorama or virtual PTZ per tile, with per-camera center/radius/mount calibration; snapshots capture the dewarped view.
+- "Import encoding channels" in Camera groups, and "Re-import channels" on devices, for rebuilding groups after a device was fixed or a group deleted.
+- Fixed the UI overflowing the window (window controls and right-hand tiles pushed off-screen); module bar uses shorter names and collapses into a single menu button when the window is too narrow; the window is sized to the screen's work area and its position/size are remembered.
+- Shorter, per-vendor port labels in the device dialog; a real tooltip on the empty-tile info icon.
+- Fixed the release script mangling CHANGELOG.md on Windows (CRLF line endings).
+
 ## 1.1.0 - 2026-10-02
-
-- Maintenance release.
-Versioning: `1.X.Y` — a **major change** increases `X` (the second number) and resets `Y`; a **minor change** increases `Y` (the third number). Use `npm run release:major` / `npm run release:minor`. Add notes under *Unreleased* as you go; the release script moves them under the new version.
-
-## Unreleased
 
 - Automatic update checks against GitHub Releases with a "new version" dialog that shows the release notes, download progress and a restart prompt; the portable exe and Linux packages get a direct download link. New *Updates* section in System Config (policy, server, token, check now, release notes) and a "What's new" screen after upgrading.
 - Frameless window with minimize / maximize / close in the app's own title bar; double-click the bar to maximize.
