@@ -2,45 +2,27 @@
 
 ## Unreleased
 
-## 1.3.3 - 2026-10-02
+## 1.0.0 - 2026-10-02
 
-- "Restart and update" now installs the downloaded update silently and relaunches UniVMS; the installer wizard no longer appears (also applies when an update installs on quit).
-## 1.3.2 - 2026-10-02
+First release of UniVMS, a multi-vendor video management client for Hikvision devices and DW Spectrum servers.
 
-- The repository is public now, so automatic update checks work without a token; the Hikvision SDK runtime moved to a private assets repository used only by the build.
+**Devices**
+- Hikvision NVR / DVR / IP cameras over ISAPI (web port) or the Hikvision Device Network SDK (server port 8000, like iVMS-4200); DW Spectrum servers (port 7001).
+- Add by IP and port, connection test, LAN discovery (Hikvision SADP, ONVIF, DW probe), remote configuration (info, cameras and codecs, storage, time sync, network, users, reboot), DW server layout import, camera groups, "Import encoding channels", local camera names, hide cameras.
+- Lockout protection: after a device rejects the credentials, automatic logins stop until the device is edited.
 
-- Settings page no longer overflows horizontally (alarm type grid wraps to the card width).
-## 1.3.1 - 2026-10-02
+**Live view**
+- Layouts 1 to 64 plus custom grids, drag & drop of cameras, devices and groups, saved views, startup view, tour, auxiliary windows.
+- Per-tile snapshot, local recording, audio, main/sub stream, digital zoom, fisheye dewarping (panorama / virtual PTZ), two-way audio (camera or recorder speaker, voice channels mapped like iVMS).
+- PTZ panel: pan/tilt/zoom/focus/iris, presets, patrols, light and wiper, Hikvision 3D positioning.
 
-- Lockout protection: after a device rejects the credentials (ISAPI 401 or SDK login error), UniVMS stops all automatic logins to it until the device is edited, so Hikvision's "illegal login" lock is no longer triggered by background retries. The status column says "Login rejected — edit the device to retry" and 401 messages explain the remaining lock time.
-- SDK connection: a plain TCP check runs before login so credentials are never sent to a closed or wrong port (e.g. an HTTP port); switching a device to SDK now always sets the server port 8000.
-- Configuration saves report failures (toast + log) and retry instead of failing silently.
-## 1.3.0 - 2026-10-02
+**Playback, events, maps**
+- Calendar and colour-coded timeline, 1 or 4 synchronized cameras, speed control, snapshots, MP4 clip export.
+- Event Center with alarm popups and sound, acknowledge, jump to live or playback; device online/offline monitoring.
+- E-maps with camera hotspots that flash on alarm.
+- Event rules editor for Hikvision channels: motion grid, line crossing, intrusion regions.
 
-- Hikvision SDK connection type (server port 8000, exactly like iVMS-4200): login, live view and playback (SDK stream piped into ffmpeg), two-way audio with the SDK's own voice-channel numbering, alarms, snapshots and all ISAPI configuration tunnelled through port 8000. Choose "Connection: Hikvision SDK / server port" in the device dialog. The free Device Network SDK is downloaded at build time (`scripts/fetch-hiksdk.js`) and bundled as `resources/hiksdk`.
-## 1.2.1 - 2026-10-02
-
-- Two-way audio now maps voice channels the way iVMS does: the microphone on a camera talks to that camera through the NVR (voice channel N+1), falling back to the recorder's own output, and a new "Two-way audio with the recorder" action on the device (right-click, or Remote config) drives speakers connected to the NVR. Per-camera override available in the tile menu; Remote config lists the device's voice channels.
-## 1.2.0 - 2026-10-02
-
-- Two-way audio: talk through Hikvision cameras / NVR speakers from a live tile (microphone button), with device audio played back.
-- Event rules editor for Hikvision channels: motion-detection grid, line-crossing lines and intrusion regions drawn over a snapshot and written back to the device (camera right-click → Event rules).
-- Fisheye dewarping (WebGL): 360° panorama or virtual PTZ per tile, with per-camera center/radius/mount calibration; snapshots capture the dewarped view.
-- "Import encoding channels" in Camera groups, and "Re-import channels" on devices, for rebuilding groups after a device was fixed or a group deleted.
-- Fixed the UI overflowing the window (window controls and right-hand tiles pushed off-screen); module bar uses shorter names and collapses into a single menu button when the window is too narrow; the window is sized to the screen's work area and its position/size are remembered.
-- Shorter, per-vendor port labels in the device dialog; a real tooltip on the empty-tile info icon.
-- Fixed the release script mangling CHANGELOG.md on Windows (CRLF line endings).
-## 1.1.0 - 2026-10-02
-
-- Automatic update checks against GitHub Releases with a "new version" dialog that shows the release notes, download progress and a restart prompt; the portable exe and Linux packages get a direct download link. New *Updates* section in System Config (policy, server, token, check now, release notes) and a "What's new" screen after upgrading.
-- Frameless window with minimize / maximize / close in the app's own title bar; double-click the bar to maximize.
-- Right-click menus on devices (tree and device table): open all cameras, edit, rename, remote configuration, refresh cameras, delete.
-- Fixed drag & drop from the camera tree into live view, playback and e-maps (the draggable attribute was emitted as an empty string, which disables dragging).
-- The device dialog now labels the port correctly per vendor: HTTP/ISAPI port for Hikvision, server port for DW Spectrum, and explains which one is needed.
-- Empty live-view windows show a centered placeholder with an info icon instead of a clipped label.
-- Saving an edited device no longer looks like a failure: the dialog closes, the connection is retried and the result is reported in a toast with guidance.
-
-## 1.0.0 - 2026-10-01
-
-- First release: Hikvision (ISAPI) and DW Spectrum drivers, live view grids with layouts/views/tour, PTZ with presets and patrols, remote playback with timeline and clip export, event center with alarm popups, e-maps, device management with discovery and remote config, log search, maintenance dashboard, local file browser, system config with app users.
-- Packaging: Windows NSIS installer and portable exe, Debian `.deb` and RPM `.rpm`, all with bundled ffmpeg.
+**Application**
+- Frameless window with its own title bar, module bar that collapses on narrow windows, log search, maintenance dashboard, local file browser, encrypted configuration backup, optional application login.
+- Automatic updates from GitHub Releases with release notes; silent install and relaunch on Windows, download links for the portable exe and Linux packages.
+- Packages: Windows installer and portable exe, Debian `.deb`, RPM `.rpm`, all with bundled ffmpeg and the Hikvision SDK runtime.

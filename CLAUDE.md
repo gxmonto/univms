@@ -12,6 +12,7 @@ Version is `1.X.Y`.
 - **Major change** → bump the **second** number, reset the third: `npm run release:major` (1.2.3 → 1.3.0). Use for a genuinely new capability (new module/feature area, new vendor, packaging/update-mechanism changes).
 - **Minor change** → bump the **third** number: `npm run release:minor` (1.2.3 → 1.2.4). Use for fixes, small enhancements, UI tweaks, dependency bumps.
 - The first number stays `1` unless the user asks.
+- **Release rarely.** On 2026-10-02 the user reset the version to 1.0.0 after ten releases in a few hours ("treat them as test releases"). Do not cut a release after every fix: batch work under *Unreleased*, release only when the user asks or when a work session is wrapped up, and ask before releasing if unsure. Local smoke/e2e runs and `dist/win-unpacked` are the way to test, not GitHub releases.
 - **Judge the size of the whole change set before bumping** (user feedback after 1.1.0). A round of fixes is minor even if there are many of them; when a round mixes fixes with a real new feature, say which bump you chose and why. When unsure, ask.
 - Keep notes under `## Unreleased` in `CHANGELOG.md` for every change; the release script moves them under the new version, writes `release-notes.md`, commits `Release vX.Y.Z`, tags, and with `-- --push` pushes (tag triggers `.github/workflows/release.yml`, which builds all installers and publishes the GitHub release with that section as notes). Do **not** put versioning explanations in README/CHANGELOG — they are for users; this file is for Claude.
 
@@ -74,6 +75,8 @@ Version is `1.X.Y`.
 - `ASSETS_TOKEN` secret must exist in `gxmonto/univms` (user creates the fine-grained PAT) or release builds fail at the SDK fetch.
 
 ## Session log
+
+- **2026-10-02 — reset to 1.0.0**: all earlier releases/tags (v1.0.0…v1.3.3) deleted as test releases; changelog consolidated into one 1.0.0 entry; current build republished as v1.0.0. Installed 1.3.x copies will not auto-downgrade (allowDowngrade=false) — install 1.0.0 manually once.
 
 - **2026-10-02 — 1.3.2/1.3.3**: repo made public (updates work tokenless), SDK runtime moved to private `univms-assets` with `ASSETS_TOKEN`; manual `check-assets-token` workflow; updater installs silently (`quitAndInstall(true, true)`) and relaunches — user does not want to see the NSIS wizard on updates.
 
