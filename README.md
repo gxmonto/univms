@@ -1,5 +1,7 @@
 # UniVMS
 
+**Download:** installers for Windows (.exe), Debian/Ubuntu (.deb) and Fedora/RHEL (.rpm) are on the [Releases page](https://github.com/gxmonto/univms/releases). The Windows installer updates itself; the portable exe and Linux packages show a download link when a new version is out.
+
 Multi-vendor video management client (iVMS-4200 style) for **Hikvision** NVRs / DVRs / IP cameras (ISAPI) and **Digital Watchdog DW Spectrum** servers (Nx-based API). Runs on Windows (NSIS installer + portable exe), Debian/Ubuntu (`.deb`) and Fedora/RHEL (`.rpm`).
 
 ## Features
@@ -62,7 +64,8 @@ Both commands work from Windows, macOS or Linux:
 
 1. `scripts/fetch-ffmpeg.js` downloads a static ffmpeg build (BtbN GPL) for the target platform into `vendor/ffmpeg/<platform>-x64/` (cached under `vendor/ffmpeg/.cache/`). It ships inside the app as `resources/ffmpeg`. Set `UNIVMS_FFMPEG_SKIP=1` to skip bundling; the app then needs ffmpeg on `PATH`.
 2. electron-builder packages the app. For Windows it produces the NSIS installer and the portable exe directly.
-3. For Linux, electron-builder produces the unpacked app (`dist/linux-unpacked`) and `scripts/package-linux.js` wraps it into `.deb` and `.rpm` with [nfpm](https://github.com/goreleaser/nfpm), which is a single binary that runs anywhere (electron-builder's own deb/rpm targets need `fpm` and `rpmbuild`, which only exist on Linux/macOS). Put `nfpm` (or `nfpm.exe`) into `vendor/tools/` or on `PATH`, or set `NFPM=/path/to/nfpm`.
+3. The Hikvision Device Network SDK runtime (optional, enables the "SDK / server port 8000" connection type) is fetched by `scripts/fetch-hiksdk.js` from the private `gxmonto/univms-assets` repository (needs a read-only token in `ASSETS_TOKEN`, or a logged-in `gh`); without it the build still succeeds and the SDK option is hidden.
+4. For Linux, electron-builder produces the unpacked app (`dist/linux-unpacked`) and `scripts/package-linux.js` wraps it into `.deb` and `.rpm` with [nfpm](https://github.com/goreleaser/nfpm), which is a single binary that runs anywhere (electron-builder's own deb/rpm targets need `fpm` and `rpmbuild`, which only exist on Linux/macOS). Put `nfpm` (or `nfpm.exe`) into `vendor/tools/` or on `PATH`, or set `NFPM=/path/to/nfpm`.
 
 The Linux packages install to `/opt/UniVMS`, add `/usr/bin/univms`, a desktop entry and hicolor icons, and set the SUID bit on `chrome-sandbox` in post-install. If you prefer a native Linux build, `scripts/build-linux-wsl.sh` runs the full electron-builder flow inside WSL/any Linux host.
 

@@ -54,9 +54,10 @@ function extract(a, dest) {
 }
 const walk = (d, acc = []) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); e.isDirectory() ? walk(p, acc) : acc.push(p); } return acc; };
 
-/** Pruned runtime zip hosted as a release asset of this repository (hikvision.com blocks CI runner IPs). */
+/** Pruned runtime zip hosted as a release asset of the private univms-assets repository (hikvision.com blocks CI runner IPs). */
+function ghCliToken() { try { return require('child_process').execFileSync('gh', ['auth', 'token'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch (_) { return ''; } }
 const ASSET_TAG = 'hiksdk-v6.1.9.4';
-const ASSET_REPO = process.env.UNIVMS_HIKSDK_REPO || 'gxmonto/univms';
+const ASSET_REPO = process.env.UNIVMS_HIKSDK_REPO || 'gxmonto/univms-assets'; // private; needs ASSETS_TOKEN (read-only) or a gh login
 function githubJson(u, token) {
   return new Promise((resolve, reject) => {
     const headers = { 'User-Agent': 'univms-build', Accept: 'application/vnd.github+json' };
@@ -76,7 +77,7 @@ function githubDownload(u, dest, token, redirects = 0) {
   });
 }
 async function fromGithubAsset() {
-  const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || '';
+  const token = process.env.ASSETS_TOKEN || process.env.GH_TOKEN || process.env.GITHUB_TOKEN || ghCliToken() || '';
   const rel = await githubJson(`https://api.github.com/repos/${ASSET_REPO}/releases/tags/${ASSET_TAG}`, token);
   const name = `hiksdk-${platform}-${arch}.zip`;
   const asset = (rel.assets || []).find((a) => a.name === name);
@@ -125,4 +126,8 @@ async function fromGithubAsset() {
   if (lic) fs.copyFileSync(lic, path.join(outDir, 'LICENSE-hikvision' + path.extname(lic)));
   fs.rmSync(tmp, { recursive: true, force: true });
   console.log(`[fetch-hiksdk] ${n} files, ${(size / 1048576).toFixed(1)} MB -> ${outDir}`);
-})().catch((e) => { console.error('[fetch-hiksdk] failed:', e.message); process.exit(1); });
+})().catch((e) => {
+  console.error('[fetch-hiksdk] failed:', e.message);
+  if (process.env.UNIVMS_HIKSDK_REQUIRED) process.exit(1);
+  console.error('[fetch-hiksdk] continuing without the Hikvision SDK (the app hides the SDK connection type). Set UNIVMS_HIKSDK_REQUIRED=1 to fail instead.');
+});

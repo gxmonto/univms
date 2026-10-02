@@ -32,6 +32,8 @@ jobs:
         run: npm run dist:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ASSETS_TOKEN: ${{ secrets.ASSETS_TOKEN }}
+          UNIVMS_HIKSDK_REQUIRED: '1'
       - uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -65,6 +67,8 @@ jobs:
         run: npm run dist:linux
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ASSETS_TOKEN: ${{ secrets.ASSETS_TOKEN }}
+          UNIVMS_HIKSDK_REQUIRED: '1'
       - name: Verify packages
         run: |
           dpkg-deb -I dist/*.deb | head -12
