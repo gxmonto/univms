@@ -63,6 +63,8 @@ jobs:
           vendor/tools/nfpm --version
       - name: Build .deb and .rpm
         run: npm run dist:linux
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Verify packages
         run: |
           dpkg-deb -I dist/*.deb | head -12

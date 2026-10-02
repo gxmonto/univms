@@ -54,7 +54,48 @@ function extract(a, dest) {
 }
 const walk = (d, acc = []) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); e.isDirectory() ? walk(p, acc) : acc.push(p); } return acc; };
 
+/** Pruned runtime zip hosted as a release asset of this repository (hikvision.com blocks CI runner IPs). */
+const ASSET_TAG = 'hiksdk-v6.1.9.4';
+const ASSET_REPO = process.env.UNIVMS_HIKSDK_REPO || 'gxmonto/univms';
+function githubJson(u, token) {
+  return new Promise((resolve, reject) => {
+    const headers = { 'User-Agent': 'univms-build', Accept: 'application/vnd.github+json' };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    https.get(u, { headers }, (res) => { let b = ''; res.on('data', (c) => (b += c)); res.on('end', () => { if (res.statusCode !== 200) return reject(new Error(`GitHub API HTTP ${res.statusCode}`)); try { resolve(JSON.parse(b)); } catch (e) { reject(e); } }); }).on('error', reject);
+  });
+}
+function githubDownload(u, dest, token, redirects = 0) {
+  return new Promise((resolve, reject) => {
+    const headers = { 'User-Agent': 'univms-build', Accept: 'application/octet-stream' };
+    if (token && !/objects\.githubusercontent|release-assets/.test(u)) headers.Authorization = `Bearer ${token}`;
+    https.get(u, { headers }, (res) => {
+      if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && redirects < 8) { res.resume(); return resolve(githubDownload(res.headers.location, dest, token, redirects + 1)); }
+      if (res.statusCode !== 200) return reject(new Error(`asset HTTP ${res.statusCode}`));
+      const f = fs.createWriteStream(dest); res.pipe(f); f.on('finish', () => f.close(resolve)); f.on('error', reject);
+    }).on('error', reject);
+  });
+}
+async function fromGithubAsset() {
+  const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || '';
+  const rel = await githubJson(`https://api.github.com/repos/${ASSET_REPO}/releases/tags/${ASSET_TAG}`, token);
+  const name = `hiksdk-${platform}-${arch}.zip`;
+  const asset = (rel.assets || []).find((a) => a.name === name);
+  if (!asset) throw new Error(`asset ${name} not found in release ${ASSET_TAG}`);
+  const zip = path.join(cacheDir, name);
+  if (!(fs.existsSync(zip) && fs.statSync(zip).size === asset.size)) {
+    console.log(`[fetch-hiksdk] downloading ${name} from ${ASSET_REPO} release ${ASSET_TAG}`);
+    await githubDownload(asset.url, zip + '.part', token);
+    fs.renameSync(zip + '.part', zip);
+  }
+  fs.rmSync(outDir, { recursive: true, force: true });
+  fs.mkdirSync(outDir, { recursive: true });
+  extract(zip, outDir);
+  if (platform !== 'win32') for (const f of walk(outDir)) fs.chmodSync(f, 0o755);
+  console.log(`[fetch-hiksdk] runtime ready from release asset -> ${outDir}`);
+}
+
 (async () => {
+  try { await fromGithubAsset(); return; } catch (e) { console.log(`[fetch-hiksdk] release asset unavailable (${e.message}); trying hikvision.com`); }
   if (!(fs.existsSync(archive) && fs.statSync(archive).size > 10_000_000)) {
     console.log(`[fetch-hiksdk] downloading ${url}`);
     await download(url, archive + '.part');
