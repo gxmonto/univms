@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+## 1.1.0 - 2026-10-02
+
+- Maintenance release.
 Versioning: `1.X.Y` — a **major change** increases `X` (the second number) and resets `Y`; a **minor change** increases `Y` (the third number). Use `npm run release:major` / `npm run release:minor`. Add notes under *Unreleased* as you go; the release script moves them under the new version.
 
 ## Unreleased
