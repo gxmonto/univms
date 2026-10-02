@@ -7,6 +7,7 @@ const { TYPES, splitCameraId } = require('./drivers');
 const ffmpegBin = require('./ffmpeg');
 const discovery = require('./discovery');
 const { TwoWayAudioSession } = require('./twoway');
+const hiksdk = require('./hiksdk');
 
 function ts(d = new Date()) {
   const p = (n) => String(n).padStart(2, '0');
@@ -48,7 +49,7 @@ function register(ctx) {
   // ---------- app ----------
   h('app:info', () => ({
     version: app.getVersion(), name: app.getName(), platform: process.platform, userData: app.getPath('userData'),
-    ffmpeg: ffmpegBin.status(store.getSettings()), ...dirs(), locked: !!ctx.locked,
+    ffmpeg: ffmpegBin.status(store.getSettings()), ...dirs(), locked: !!ctx.locked, hiksdk: hiksdk.status(),
   }));
   h('app:openExternal', (_e, url) => shell.openExternal(url));
   h('app:changelog', (_e, version) => {
@@ -212,6 +213,13 @@ function register(ctx) {
     const dev = store.getDevice(deviceId);
     if (!dev || dev.type !== 'hikvision') return [];
     const drv = pool.get(deviceId);
+    if (drv.usesSdk) {
+      const info = await drv.sdk.login();
+      const cams = hub.cameraCache.get(deviceId) || dev.cameras || [];
+      const list = [{ id: 1, label: `${dev.name} audio output (speaker on the recorder)`, codec: 'device setting' }];
+      for (const c of cams) list.push({ id: drv.sdk.voiceChannel(c.channel, c.kind), label: `${c.name} (camera ${c.channel})`, codec: 'device setting' });
+      return list;
+    }
     const x = await drv.xml('/ISAPI/System/TwoWayAudio/channels');
     const list = x.TwoWayAudioChannelList ? [].concat(x.TwoWayAudioChannelList.TwoWayAudioChannel || []) : [];
     const cams = hub.cameraCache.get(deviceId) || dev.cameras || [];
@@ -226,6 +234,15 @@ function register(ctx) {
     if (dev.type !== 'hikvision') throw new Error('Two-way audio is currently supported for Hikvision devices only');
     const key = talkKey(e, cameraId);
     const old = talks.get(key); if (old) await old.close();
+    if (driver.usesSdk) {
+      // SDK voice channel: NVR local output = 1, cameras from byStartDTalkChan (exactly what iVMS does)
+      const voiceChan = target.channelId || driver.sdk.voiceChannel(target.cameraChannel, driver.camKind(target.cameraChannel));
+      const wc = e.sender;
+      const v = await driver.sdk.startVoice(voiceChan, (chunk) => { if (!wc.isDestroyed()) wc.send('twoway:data', cameraId, chunk); });
+      const sess = { send: (c) => v.send(c), close: async () => { v.stop(); talks.delete(key); if (!wc.isDestroyed()) wc.send('twoway:end', cameraId, {}); }, bytesOut: 0 };
+      talks.set(key, sess);
+      return { channelId: voiceChan, mapping: target.channelId ? 'manual' : 'camera', codec: v.codec, sampleRate: v.sampleRate, via: 'sdk' };
+    }
     const s = new TwoWayAudioSession(driver, target);
     talks.set(key, s);
     const wc = e.sender;
@@ -272,6 +289,12 @@ function register(ctx) {
   // ---------- streaming ----------
   h('stream:start', (e, opts) => {
     const { driver, channel, cam } = camInfo(opts.cameraId);
+    if (driver.usesSdk) {
+      // Hikvision SDK (server port 8000): the device pushes a PS stream that ffmpeg remuxes from stdin
+      return streams.startPiped(e.sender, { ...opts, cameraName: cam.name }, (write) => opts.kind === 'playback'
+        ? driver.sdk.startPlayback(channel, driver.camKind(channel), opts.startMs, opts.endMs, write)
+        : driver.sdk.startLive(channel, driver.camKind(channel), opts.stream || store.getSettings().defaultStream || 'sub', write));
+    }
     const url = opts.kind === 'playback' ? driver.playbackUrl(channel, opts.startMs, opts.endMs) : driver.liveUrl(channel, opts.stream || store.getSettings().defaultStream || 'sub');
     return streams.start(e.sender, { ...opts, url, cameraName: cam.name });
   });

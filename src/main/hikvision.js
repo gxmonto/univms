@@ -25,10 +25,20 @@ class HikvisionDevice {
     this.rtspPort = Number(cfg.rtspPort) || Number(cfg.detectedRtspPort) || 554;
     this.base = `${this.https ? 'https' : 'http'}://${this.host}:${this.port}`;
     this.auth = { type: 'digest', username: this.username, password: this.password };
+    // transport 'sdk' = Hikvision Device Network SDK on the server port (8000): ISAPI is tunnelled through it
+    this.transport = cfg.transport === 'sdk' ? 'sdk' : 'isapi';
+    if (this.transport === 'sdk') this.sdk = require('./hiksdk').HikSdkSession.get({ id: cfg.id, host: this.host, port: Number(cfg.port) || 8000, username: this.username, password: this.password });
   }
+  get usesSdk() { return this.transport === 'sdk'; }
+  camKind(channel) { const c = (this.cfg.cameras || []).find((k) => Number(k.channel) === Number(channel)); return c ? c.kind : 'ip'; }
 
   // ---------- low level ----------
   async get(pathname, opts = {}) {
+    if (this.usesSdk) {
+      const r = await this.sdk.isapi('GET', pathname);
+      if (r.status >= 400) throw new HttpError(r.status, r.error || r.text, pathname);
+      return { status: 200, headers: { 'content-type': 'application/xml' }, buffer: r.buffer, text: r.text };
+    }
     const res = await request(this.base + pathname, { auth: this.auth, timeout: opts.timeout || 12000, headers: opts.headers });
     if (res.status >= 400) throw new HttpError(res.status, res.text, pathname);
     return res;
@@ -38,6 +48,11 @@ class HikvisionDevice {
     return parser.parse(res.text);
   }
   async send(method, pathname, body, opts = {}) {
+    if (this.usesSdk) {
+      const r = await this.sdk.isapi(method, pathname, body);
+      if (r.status >= 400) throw new HttpError(r.status, r.error || r.text, pathname);
+      return parser.parse(r.text || '<empty/>');
+    }
     const res = await request(this.base + pathname, {
       method, body, auth: this.auth, timeout: opts.timeout || 15000,
       headers: { 'Content-Type': 'application/xml', ...(opts.headers || {}) },
@@ -60,12 +75,18 @@ class HikvisionDevice {
   }
 
   async probe() {
+    if (this.usesSdk) {
+      const sdkInfo = await this.sdk.login();
+      let info = {};
+      try { info = await this.deviceInfo(); } catch (e) { info = { model: `Hikvision (SDK, device type ${sdkInfo.deviceType})`, serial: sdkInfo.serial }; }
+      return { ...info, serial: info.serial || sdkInfo.serial, vendor: 'hikvision', transport: 'sdk', sdk: sdkInfo, rtspPort: this.rtspPort };
+    }
     const info = await this.deviceInfo();
     try {
       const ports = await this.ports();
       if (ports.rtsp) this.rtspPort = ports.rtsp;
     } catch (_) {}
-    return { ...info, rtspPort: this.rtspPort, vendor: 'hikvision' };
+    return { ...info, rtspPort: this.rtspPort, vendor: 'hikvision', transport: 'isapi' };
   }
 
   async ports() {
@@ -180,6 +201,7 @@ class HikvisionDevice {
 
   // ---------- snapshot ----------
   async snapshot(channel, stream = 'main') {
+    if (this.usesSdk) return { contentType: 'image/jpeg', data: await this.sdk.snapshot(channel, this.camKind(channel)) };
     const streamNo = stream === 'main' ? 1 : 2;
     const res = await this.get(`/ISAPI/Streaming/channels/${channel * 100 + streamNo}/picture`, { timeout: 15000 });
     return { contentType: res.headers['content-type'] || 'image/jpeg', data: res.buffer };
@@ -388,6 +410,10 @@ class HikvisionDevice {
    * Returns { close() }. Caller handles reconnection.
    */
   async alertStream(onEvent, onClose) {
+    if (this.usesSdk) {
+      const sub = await this.sdk.subscribeAlarms((ev) => onEvent({ ...ev, count: 1 }));
+      return { close() { sub.close(); onClose && onClose(); } };
+    }
     const res = await request(this.base + '/ISAPI/Event/notification/alertStream', { auth: this.auth, stream: true, timeout: 30000 });
     if (res.status >= 400) { res.stream.resume(); throw new HttpError(res.status, '', 'alertStream'); }
     let buf = '';

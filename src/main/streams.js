@@ -75,10 +75,47 @@ class StreamManager {
     return { ok: true, args: args.map((a) => (a === opts.url ? sanitizeUrl(a) : a)) };
   }
 
+  /**
+   * Like start(), but ffmpeg reads from stdin and `attach(write)` connects a data source (Hikvision SDK PS stream).
+   * attach returns (or resolves to) { stop }.
+   */
+  async startPiped(wc, opts, attach) {
+    this.stop(opts.id);
+    const s = this.getSettings();
+    const args = ['-hide_banner', '-loglevel', 'warning'];
+    if (s.lowLatency !== false && opts.kind !== 'playback') args.push('-fflags', 'nobuffer', '-flags', 'low_delay');
+    else args.push('-fflags', '+genpts');
+    args.push('-probesize', '2000000', '-analyzeduration', '3000000', '-f', 'mpeg', '-i', 'pipe:0', '-map', '0:v:0');
+    if (opts.audio) args.push('-map', '0:a:0?', '-c:a', 'aac', '-ar', '16000', '-ac', '1', '-b:a', '48k'); else args.push('-an');
+    if (opts.transcode) args.push('-c:v', 'libx264', '-preset', 'veryfast', '-tune', 'zerolatency', '-profile:v', 'main', '-pix_fmt', 'yuv420p', '-g', '25', '-b:v', opts.bitrate || '2M');
+    else args.push('-c:v', 'copy');
+    args.push('-f', 'mp4', '-movflags', 'empty_moov+default_base_moof+frag_keyframe', '-frag_duration', opts.kind === 'playback' ? '500000' : '300000', '-avoid_negative_ts', 'make_zero', 'pipe:1');
+    const proc = spawn(this.bin('ffmpeg'), args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+    const entry = { proc, wc, info: { ...opts, url: 'sdk://' + (opts.cameraId || '') }, errors: [], bytes: 0, started: Date.now(), source: null };
+    this.streams.set(opts.id, entry);
+    proc.stdin.on('error', () => {});
+    proc.stdout.on('data', (chunk) => { entry.bytes += chunk.length; if (!wc.isDestroyed()) wc.send('stream:data', opts.id, chunk); });
+    proc.stderr.on('data', (d) => { entry.errors.push(...d.toString().split(/\r?\n/).filter(Boolean)); if (entry.errors.length > 20) entry.errors.splice(0, entry.errors.length - 20); });
+    proc.on('close', (code) => {
+      if (entry.source) { try { entry.source.stop(); } catch (_) {} entry.source = null; }
+      if (this.streams.get(opts.id) === entry) this.streams.delete(opts.id);
+      if (!wc.isDestroyed()) wc.send('stream:end', opts.id, { code, error: entry.errors.slice(-3).join('\n'), bytes: entry.bytes, uptime: Date.now() - entry.started });
+    });
+    try {
+      entry.source = await attach((buf) => { if (!proc.stdin.destroyed && proc.exitCode === null) proc.stdin.write(buf); });
+    } catch (e) {
+      this.stop(opts.id);
+      throw e;
+    }
+    return { ok: true, piped: true };
+  }
+
   stop(id) {
     const e = this.streams.get(id);
     if (!e) return false;
     this.streams.delete(id);
+    if (e.source) { try { e.source.stop(); } catch (_) {} e.source = null; }
+    try { e.proc.stdin && e.proc.stdin.end(); } catch (_) {}
     try { e.proc.kill('SIGKILL'); } catch (_) {}
     return true;
   }

@@ -9,3 +9,4 @@ vendor/tools/
 Thumbs.db
 auto.crt
 auto.key
+vendor/hiksdk/

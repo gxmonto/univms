@@ -46,7 +46,7 @@ if (!fs.existsSync(path.join(ffDst, 'ffmpeg'))) console.warn('[package-linux] WA
 const exeName = fs.existsSync(path.join(unpacked, pkg.name)) ? pkg.name : fs.readdirSync(unpacked).find((f) => !f.includes('.') && fs.statSync(path.join(unpacked, f)).isFile() && !['LICENSE', 'LICENSES', 'chrome-sandbox', 'chrome_crashpad_handler', 'version'].includes(f));
 if (!exeName) { console.error('[package-linux] could not determine the Electron executable name in ' + unpacked); process.exit(1); }
 const installDir = '/opt/UniVMS';
-const EXEC = new Set([exeName, 'chrome-sandbox', 'chrome_crashpad_handler', 'ffmpeg', 'ffprobe']);
+const EXEC = new Set([exeName, 'chrome-sandbox', 'chrome_crashpad_handler', 'ffmpeg', 'ffprobe']); // .so files get 0755 below
 
 // Explicit content list so executable bits are right even when packaging from Windows
 const contents = [];

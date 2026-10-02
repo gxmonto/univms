@@ -184,6 +184,7 @@ if (!gotLock && !SMOKE && !E2E) {
         const result = await win.webContents.executeJavaScript('window.__smoke ? window.__smoke() : "no smoke hook"').catch((e) => 'exec error: ' + e.message);
         log('SMOKE result', result);
         log('SMOKE ffmpeg', JSON.stringify(require('./ffmpeg').status(store.getSettings())));
+        try { const hk = require('./hiksdk'); if (hk.available()) hk.ensureLoaded(); log('SMOKE hiksdk', JSON.stringify(hk.status())); } catch (e) { log('SMOKE hiksdk error', e.message); }
         log('SMOKE console errors', errors.length ? errors : 'none');
         app.isQuitting = true;
         app.exit(errors.length || (typeof result === 'string' && /error/i.test(result)) ? 1 : 0);
@@ -194,5 +195,5 @@ if (!gotLock && !SMOKE && !E2E) {
   app.on('activate', () => { if (windows.size === 0) createWindow(); });
   app.on('window-all-closed', () => { if (process.platform !== 'darwin' && !(tray && store.getSettings().minimizeToTray)) app.quit(); });
   app.on('before-quit', () => { app.isQuitting = true; });
-  app.on('will-quit', () => { try { ctx.updater && ctx.updater.stop(); hub && hub.stop(); streams && streams.shutdown(); store && store.flush(); } catch (_) {} });
+  app.on('will-quit', () => { try { ctx.updater && ctx.updater.stop(); hub && hub.stop(); streams && streams.shutdown(); require('./hiksdk').shutdown(); store && store.flush(); } catch (_) {} });
 }

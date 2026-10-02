@@ -32,6 +32,8 @@ win:
   extraResources:
     - from: vendor/ffmpeg/win32-x64
       to: ffmpeg
+    - from: vendor/hiksdk/win32-x64
+      to: hiksdk
   target:
     - target: nsis
       arch: [x64]
@@ -54,6 +56,8 @@ linux:
   extraResources:
     - from: vendor/ffmpeg/linux-x64
       to: ffmpeg
+    - from: vendor/hiksdk/linux-x64
+      to: hiksdk
   target:
     - deb
     - rpm

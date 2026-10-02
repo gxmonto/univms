@@ -11,8 +11,12 @@ export function editDevice(dev = null, prefill = {}) {
   const d = { type: 'hikvision', port: 80, https: false, username: 'admin', ...(dev || {}), ...prefill };
   const f = {};
   const inp = (key, attrs = {}) => (f[key] = el('input', { type: 'text', value: d[key] !== undefined && d[key] !== null ? d[key] : '', ...attrs }));
-  const portLabelFor = (type) => (type === 'dwspectrum' ? 'Server port (usually 7001)' : 'HTTP port (usually 80) — not the SDK/server port 8000');
-  f.type = el('select', { onChange: () => { const t = types.find((x) => x.id === f.type.value); if (t && (!f.port.value || types.some((x) => String(x.defaultPort) === f.port.value))) f.port.value = t.defaultPort; f.https.checked = f.type.value === 'dwspectrum'; httpsLbl.classList.toggle('hidden', f.type.value === 'dwspectrum'); portLabel.firstChild.textContent = portLabelFor(f.type.value); } }, ...types.map((t) => el('option', { value: t.id, selected: t.id === d.type }, t.label)));
+  const sdkAvail = !!(state.info && state.info.hiksdk && state.info.hiksdk.available);
+  const portLabelFor = (type, transport) => (type === 'dwspectrum' ? 'Server port (usually 7001)' : transport === 'sdk' ? 'Server port (SDK, usually 8000)' : 'HTTP port (usually 80)' + (sdkAvail ? '' : ' — not the SDK/server port 8000'));
+  f.transport = el('select', { onChange: () => { if (f.type.value === 'hikvision') { if (f.transport.value === 'sdk' && (f.port.value === '80' || f.port.value === '443' || !f.port.value)) f.port.value = 8000; if (f.transport.value === 'isapi' && f.port.value === '8000') f.port.value = 80; } portLabel.firstChild.textContent = portLabelFor(f.type.value, f.transport.value); httpsLbl.classList.toggle('hidden', f.type.value === 'dwspectrum' || f.transport.value === 'sdk'); } },
+    el('option', { value: 'isapi', selected: d.transport !== 'sdk' }, 'HTTP / ISAPI (web port, default)'),
+    el('option', { value: 'sdk', selected: d.transport === 'sdk', disabled: !sdkAvail }, sdkAvail ? 'Hikvision SDK / server port 8000 (like iVMS)' : 'Hikvision SDK — not bundled in this build'));
+  f.type = el('select', { onChange: () => { const t = types.find((x) => x.id === f.type.value); if (t && (!f.port.value || types.some((x) => String(x.defaultPort) === f.port.value))) f.port.value = t.defaultPort; f.https.checked = f.type.value === 'dwspectrum'; httpsLbl.classList.toggle('hidden', f.type.value === 'dwspectrum'); portLabel.firstChild.textContent = portLabelFor(f.type.value, f.transport.value); transportLbl.classList.toggle('hidden', f.type.value !== 'hikvision'); } }, ...types.map((t) => el('option', { value: t.id, selected: t.id === d.type }, t.label)));
   inp('name', { placeholder: 'Front office NVR' });
   inp('host', { placeholder: '192.168.1.100 or hostname' });
   inp('port', { type: 'number', min: 1, max: 65535 });
@@ -23,11 +27,13 @@ export function editDevice(dev = null, prefill = {}) {
   f.eventsDisabled = el('input', { type: 'checkbox', checked: !!d.eventsDisabled });
   const httpsLbl = el('label', { class: `check ${d.type === 'dwspectrum' ? 'hidden' : ''}` }, f.https, 'Use HTTPS');
   const result = el('div', { class: 'small', style: { minHeight: '20px' } });
-  const portLabel = el('label', { class: 'field' }, portLabelFor(d.type), f.port);
-  const collect = () => ({ ...(dev ? { id: dev.id } : {}), type: f.type.value, name: f.name.value.trim(), host: f.host.value.trim(), port: Number(f.port.value) || types.find((t) => t.id === f.type.value).defaultPort, https: f.type.value === 'dwspectrum' ? true : f.https.checked, username: f.username.value, password: f.password.value, rtspPort: Number(f.rtspPort.value) || undefined, eventsDisabled: f.eventsDisabled.checked });
+  const portLabel = el('label', { class: 'field' }, portLabelFor(d.type, d.transport), f.port);
+  const transportLbl = el('label', { class: `field full ${d.type !== 'hikvision' ? 'hidden' : ''}` }, 'Connection', f.transport, el('span', { class: 'dim small' }, 'ISAPI uses the device\'s web port. The SDK option talks to the server port 8000 exactly like iVMS-4200 (video, playback, two-way audio and alarms all go through port 8000; useful when only 8000 is forwarded).'));
+  const collect = () => ({ ...(dev ? { id: dev.id } : {}), type: f.type.value, transport: f.type.value === 'hikvision' ? f.transport.value : undefined, name: f.name.value.trim(), host: f.host.value.trim(), port: Number(f.port.value) || (f.type.value === 'hikvision' && f.transport.value === 'sdk' ? 8000 : types.find((t) => t.id === f.type.value).defaultPort), https: f.type.value === 'dwspectrum' ? true : f.https.checked, username: f.username.value, password: f.password.value, rtspPort: Number(f.rtspPort.value) || undefined, eventsDisabled: f.eventsDisabled.checked });
   const validate = (c) => { if (!c.host) throw new Error('Host is required'); if (!c.name) c.name = c.host; if (!c.username) throw new Error('Username is required'); if (!dev && !c.password) throw new Error('Password is required'); };
   const body = el('div', { class: 'form-grid' },
     el('label', { class: 'field full' }, 'Device type', f.type),
+    transportLbl,
     el('label', { class: 'field' }, 'Name', f.name), el('label', { class: 'field' }, 'Host / IP', f.host),
     portLabel, el('label', { class: 'field' }, 'RTSP port (optional, auto-detected)', f.rtspPort),
     el('label', { class: 'field' }, 'Username', f.username), el('label', { class: 'field' }, 'Password', f.password),
@@ -179,7 +185,7 @@ function renderRows() {
     tbody.append(el('tr', { class: selectedId === d.id ? 'selected' : '', onClick: () => { selectedId = d.id; renderRows(); }, onDblclick: () => remoteConfig(d),
       onContextmenu: (e) => { e.preventDefault(); selectedId = d.id; renderRows(); contextMenu(e.clientX, e.clientY, deviceMenuItems(d, cams)); } },
       el('td', {}, el('span', { class: `status-dot ${st.online === true ? 'on' : st.online === false ? 'off' : 'unknown'}` })),
-      el('td', {}, d.name), el('td', {}, typeLabel(d.type)), el('td', {}, `${d.https ? 'https://' : ''}${d.host}:${d.port}`),
+      el('td', {}, d.name), el('td', {}, typeLabel(d.type) + (d.transport === 'sdk' ? ' • SDK' : '')), el('td', {}, `${d.https ? 'https://' : ''}${d.host}:${d.port}`),
       el('td', {}, (d.info && (d.info.model || d.info.name)) || '-'), el('td', {}, (d.info && d.info.serial) || '-'), el('td', {}, (d.info && d.info.firmware) || '-'),
       el('td', {}, cams.length ? `${online}/${cams.length}` : '-'), el('td', {}, d.lastRefresh ? fmtTime(d.lastRefresh) : '-'),
       el('td', { title: st.error || '' }, st.online === false ? el('span', { class: 'err' }, 'Offline' + (st.error ? ': ' + st.error.slice(0, 60) : '')) : st.online ? el('span', { class: 'ok' }, 'Online') : el('span', { class: 'dim' }, 'Checking…'))));

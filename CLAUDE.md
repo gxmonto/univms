@@ -30,7 +30,8 @@ Version is `1.X.Y`.
 ## How things work (decisions)
 
 - Video: ffmpeg remuxes RTSP to fragmented MP4 (`-movflags empty_moov+default_base_moof+frag_keyframe -frag_duration 300000`), piped over IPC, played with MSE. H.265 → MSE codec check → automatic transcode restart. No `-tag:v hvc1` (breaks H.264).
-- Hikvision needs the **HTTP/ISAPI port** (80), never the SDK "server port" 8000 (binary HCNetSDK protocol; would need Hikvision's closed native SDK). RTSP port is auto-read from `/ISAPI/Security/adminAccesses`.
+- Hikvision has two connection types (`device.transport`): `isapi` (HTTP/ISAPI on the web port, default) and `sdk` (Hikvision Device Network SDK on the server port 8000, like iVMS-4200). RTSP port is auto-read from `/ISAPI/Security/adminAccesses` in ISAPI mode.
+- **Hikvision SDK path** (`src/main/hiksdk.js`, koffi FFI, no compiler): `HikSdkSession` per device — login (`NET_DVR_Login_V40`), ISAPI pass-through (`NET_DVR_STDXMLConfig`, so the whole ISAPI driver works unchanged over 8000), live (`NET_DVR_RealPlay_V40` + `NET_DVR_SetStandardDataCallBack` → PS stream piped into ffmpeg stdin via `streams.startPiped`), playback (`NET_DVR_PlayBackByTime_V40`, device **local** time), snapshots (`NET_DVR_CaptureJPEGPicture_NEW`), voice (`NET_DVR_StartVoiceCom_MR_V30`, G.711 only; voice channel = `byStartDTalkChan + ch − 1` for IP cameras, 1 = recorder output), alarms (`NET_DVR_SetupAlarmChan_V50`, decodes `COMM_ALARM_V30`, maps `COMM_ALARM_RULE`). SDK channel numbers: IP camera N = `byStartDChan + N − 1`. Struct layouts use default alignment (koffi sizes verified in `tests/hiksdk.test.js`). The libraries (~45 MB win, ~20 MB linux) are downloaded by `scripts/fetch-hiksdk.js` from hikvision.com (needs a browser User-Agent; URLs are stable per SDK version) into `vendor/hiksdk/<platform>-x64` and bundled as `resources/hiksdk`; not in git. **Not yet tested against a real NVR** — needs one reachable on port 8000.
 - DW Spectrum: server port 7001, HTTPS, REST v2 session token; RTSP uses the same user/password (local server user needed, cloud 2FA accounts cannot stream).
 - Two-way audio (Hikvision only): `/ISAPI/System/TwoWayAudio/channels/{id}/open`, chunked PUT + GET of `audioData` in G.711 µ-law/A-law 8 kHz; renderer does capture/codec in `talk.js`. Voice-channel mapping follows iVMS/HCNetSDK: on a recorder channel 1 = the NVR's own audio output (speakers on the NVR, used via device right-click "Two-way audio with the recorder" → `talkbar.js`, id `dev:<deviceId>`), camera N = channel N+1, fallback to channel 1 when the camera has no voice channel; standalone camera = channel 1. Per-camera override stored in `cameraAliases[id].talkChannel`. DW not implemented (API unverified; needs a DW server).
 - Smart rules: GET XML → edit object (fast-xml-parser keeps `@_size` attrs and namespace) → PUT rebuilt XML. Motion grid `gridMap` is hex, `ceil(cols/8)` bytes per row, column 0 = MSB.
@@ -62,12 +63,15 @@ Version is `1.X.Y`.
 
 ## Pending / needs from the user
 
+- **Hikvision SDK mode** needs a real NVR reachable on port 8000 (IP + user/password) to validate login, stream, voice and alarms.
 - Two-way audio for **DW Spectrum**: need a reachable DW server (or its API docs) to verify the audio endpoint.
 - **Access control / intercom** modules (iVMS has them): need a Hikvision access controller or intercom device (model + reachable unit) to develop against the `/ISAPI/AccessControl/*` API.
 - Real-device validation: all drivers are tested against mocks only; first runs against production NVRs / DW servers may reveal firmware quirks.
 - Make the GitHub repo public or add a token in the app so the update check works.
 
 ## Session log
+
+- **2026-10-02 — 1.3.0**: Hikvision SDK connection type (port 8000) covering live, playback, two-way audio, alarms, snapshots and ISAPI pass-through; SDK fetched at build time and cached in CI. Awaiting validation on a real NVR.
 
 - **2026-10-02 — 1.2.1**: two-way audio voice-channel mapping like iVMS (camera → N+1, recorder output = 1), "Two-way audio with the recorder" on devices, per-camera target override, voice channel list in Remote config; sockets closed cleanly (`Connection: close`, tx destroy) and unit tests get a 30 s timeout.
 
