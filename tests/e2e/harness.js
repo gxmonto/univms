@@ -25,7 +25,7 @@ function startRtspSource(ffmpeg) {
   const cfgDir = fs.mkdtempSync(path.join(os.tmpdir(), 'univms-mtx-'));
   const cfg = path.join(cfgDir, 'mediamtx.yml');
   fs.writeFileSync(cfg, `logLevel: warn\napi: no\nmetrics: no\npprof: no\nplayback: no\nrtsp: yes\nrtspAddress: 127.0.0.1:${RTSP_PORT}\nrtspTransports: [tcp]\nrtmp: no\nhls: no\nwebrtc: no\nsrt: no\npaths:\n  all_others:\n`);
-  const server = spawn(mediamtx, [cfg], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+  const server = spawn(mediamtx, [cfg], { cwd: cfgDir, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }); // cwd: keeps its auto-generated certs out of the repo
   server.stdout.on('data', (d) => process.stdout.write('[mediamtx] ' + d));
   server.stderr.on('data', (d) => process.stdout.write('[mediamtx] ' + d));
   let pub = null;

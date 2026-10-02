@@ -7,3 +7,5 @@ vendor/tools/
 *.log
 .DS_Store
 Thumbs.db
+auto.crt
+auto.key
