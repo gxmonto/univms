@@ -106,6 +106,15 @@ async function run(ctx, win, app) {
       await js(`document.querySelector('.modal .m-head .icon-btn').click()`);
       await sleep(300);
     } catch (e) { results.rulesError = e.message; }
+    // Hik-Connect dialog: status from the mock EZVIZ node + QR code rendered
+    try {
+      await js(`window.vms.invoke('devices:list').then((l) => import('./hikconnect.js').then((m) => m.openHikConnect(l[0])))`);
+      await sleep(1500);
+      results.hikConnect = await js(`(() => { const img = document.querySelector('.modal img[alt="QR code"]'); const txt = document.querySelector('.modal').textContent; return { qr: !!(img && img.src.startsWith('data:image/png')), serial: txt.includes('MOCK0001'), enabled: txt.includes('Enabled') }; })()`);
+      await shot('03d-hikconnect');
+      await js(`document.querySelector('.modal .m-head .icon-btn').click()`);
+      await sleep(300);
+    } catch (e) { results.hikConnectError = e.message; }
     // narrow window: module bar must collapse into the menu button and the window controls stay visible
     const [bw, bh] = win.getSize();
     win.setSize(1000, 700);
@@ -141,7 +150,7 @@ async function run(ctx, win, app) {
   }
   log('E2E RESULTS', results);
   fs.writeFileSync(path.join(outDir, 'results.json'), JSON.stringify(results, null, 2));
-  const pass = results.deviceAdded && results.cameras > 0 && results.livePlaying && results.mapImageWidth > 0 && results.mapHotspots === 1 && results.events > 0 && results.treeDraggable === 'true' && results.dropAssigned === true && results.talkBytesAtDevice > 0 && results.talkClosed === 1 && Array.isArray(results.rulesTabs) && results.rulesTabs.length === 3 && results.navCollapsedNarrow === true && results.closeVisibleNarrow === true && results.navExpandedWide === true && !results.error;
+  const pass = results.deviceAdded && results.cameras > 0 && results.livePlaying && results.mapImageWidth > 0 && results.mapHotspots === 1 && results.events > 0 && results.treeDraggable === 'true' && results.dropAssigned === true && results.talkBytesAtDevice > 0 && results.talkClosed === 1 && Array.isArray(results.rulesTabs) && results.rulesTabs.length === 3 && results.navCollapsedNarrow === true && results.closeVisibleNarrow === true && results.navExpandedWide === true && results.hikConnect && results.hikConnect.qr && results.hikConnect.serial && !results.error;
   log(pass ? 'E2E PASS' : 'E2E FAIL');
   app.isQuitting = true;
   app.exit(pass ? 0 : 1);

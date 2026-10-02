@@ -70,6 +70,7 @@ class StreamManager {
     });
     proc.on('close', (code) => {
       if (this.streams.get(opts.id) === entry) this.streams.delete(opts.id);
+      if (code !== 0 || entry.bytes === 0) this.log && this.log('stream ended', opts.cameraId, opts.kind, `code=${code} bytes=${entry.bytes}`, entry.errors.slice(-3).join(' | '));
       if (!wc.isDestroyed()) wc.send('stream:end', opts.id, { code, error: entry.errors.slice(-3).join('\n'), bytes: entry.bytes, uptime: Date.now() - entry.started });
     });
     return { ok: true, args: args.map((a) => (a === opts.url ? sanitizeUrl(a) : a)) };
@@ -99,11 +100,13 @@ class StreamManager {
     proc.on('close', (code) => {
       if (entry.source) { try { entry.source.stop(); } catch (_) {} entry.source = null; }
       if (this.streams.get(opts.id) === entry) this.streams.delete(opts.id);
+      this.log && this.log('sdk stream ended', opts.cameraId, opts.kind, `code=${code} in=${entry.inBytes || 0} out=${entry.bytes}`, entry.errors.slice(-3).join(' | '));
       if (!wc.isDestroyed()) wc.send('stream:end', opts.id, { code, error: entry.errors.slice(-3).join('\n'), bytes: entry.bytes, uptime: Date.now() - entry.started });
     });
     try {
-      entry.source = await attach((buf) => { if (!proc.stdin.destroyed && proc.exitCode === null) proc.stdin.write(buf); });
+      entry.source = await attach((buf) => { entry.inBytes = (entry.inBytes || 0) + buf.length; if (!proc.stdin.destroyed && proc.exitCode === null) proc.stdin.write(buf); });
     } catch (e) {
+      this.log && this.log('sdk stream attach failed', opts.cameraId, e.message);
       this.stop(opts.id);
       throw e;
     }

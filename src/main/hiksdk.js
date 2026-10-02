@@ -252,10 +252,11 @@ class HikSdkSession extends EventEmitter {
     await this.login();
     const preview = { lChannel: this.sdkChannel(channel, kind), dwStreamType: stream === 'main' ? 0 : stream === 'third' ? 2 : 1, dwLinkMode: 0, hPlayWnd: null, bBlocked: 0, bPassbackRecord: 0, byPreviewMode: 0, byStreamID: new Array(32).fill(0), byProtoType: 0, byRes1: 0, byVideoCodingType: 0, dwDisplayBufNum: 1, byNPQMode: 0, byRecvMetaData: 0, byDataType: 0, byRes: new Array(213).fill(0) };
     let stopped = false;
-    const cb = koffi.register((h, type, ptr, len) => { if (!stopped && len > 0 && ptr) onData(Buffer.from(koffi.decode(ptr, koffi.array('uint8', len, 'Typed')))); }, koffi.pointer(T.StdDataCb));
-    const handle = F.NET_DVR_RealPlay_V40(this.userId, preview, null, null);
+    // The RealPlay callback delivers Hikvision's private PS stream: type 1 = 40-byte system header ("IMKH"), type 2 = PS packs
+    // (0x000001BA…) that ffmpeg's mpeg demuxer reads. (NET_DVR_SetStandardDataCallBack would give RTP-wrapped ES instead.)
+    const cb = koffi.register((h, type, ptr, len) => { if (!stopped && type === 2 && len > 0 && ptr) onData(Buffer.from(koffi.decode(ptr, koffi.array('uint8', len, 'Typed')))); }, koffi.pointer(T.RealDataCb));
+    const handle = F.NET_DVR_RealPlay_V40(this.userId, preview, cb, null);
     if (handle < 0) { koffi.unregister(cb); throw new SdkError('Live stream failed: ' + lastError()); }
-    if (!F.NET_DVR_SetStandardDataCallBack(handle, cb, 0)) { F.NET_DVR_StopRealPlay(handle); koffi.unregister(cb); throw new SdkError('Stream callback failed: ' + lastError()); }
     return { stop: () => { if (stopped) return; stopped = true; try { F.NET_DVR_StopRealPlay(handle); } catch (_) {} setTimeout(() => { try { koffi.unregister(cb); } catch (_) {} }, 1000); } };
   }
 
@@ -265,7 +266,7 @@ class HikSdkSession extends EventEmitter {
     const t = (ms) => { const d = new Date(ms); return { dwYear: d.getFullYear(), dwMonth: d.getMonth() + 1, dwDay: d.getDate(), dwHour: d.getHours(), dwMinute: d.getMinutes(), dwSecond: d.getSeconds() }; };
     const vod = { dwSize: koffi.sizeof(T.NET_DVR_VOD_PARA), struIDInfo: { dwSize: koffi.sizeof(T.NET_DVR_STREAM_INFO), byID: new Array(32).fill(0), dwChannel: this.sdkChannel(channel, kind), byRes: new Array(32).fill(0) }, struBeginTime: t(startMs), struEndTime: t(endMs || startMs + 3600 * 1000 * 24), hWnd: null, byDrawFrame: 0, byVolumeType: 0, byVolumeNum: 0, byStreamType: 0, dwFileIndex: 0, byAudioFile: 0, byCourseFile: 0, byDownload: 0, byOptimalStreamType: 0, byUseAsyn: 0, byRes2: new Array(19).fill(0) };
     let stopped = false;
-    const cb = koffi.register((h, type, ptr, len) => { if (!stopped && len > 0 && ptr) onData(Buffer.from(koffi.decode(ptr, koffi.array('uint8', len, 'Typed')))); }, koffi.pointer(T.RealDataCb));
+    const cb = koffi.register((h, type, ptr, len) => { if (!stopped && type === 2 && len > 0 && ptr) onData(Buffer.from(koffi.decode(ptr, koffi.array('uint8', len, 'Typed')))); }, koffi.pointer(T.RealDataCb));
     const handle = F.NET_DVR_PlayBackByTime_V40(this.userId, vod);
     if (handle < 0) { koffi.unregister(cb); throw new SdkError('Playback failed: ' + lastError()); }
     F.NET_DVR_SetPlayDataCallBack_V40(handle, cb, null);
@@ -284,12 +285,21 @@ class HikSdkSession extends EventEmitter {
       rate = { 1: 16000, 2: 32000, 3: 48000, 4: 44100, 5: 8000 }[Number(comp.byAudioSamplingRate)] || 8000;
     }
     let stopped = false;
+    // MR ("manual render") mode: the SDK decodes device audio to PCM16 mono for us; what we send must be encoded G.711 in 160-byte frames.
     const cb = koffi.register((h, ptr, len, flag) => { if (!stopped && len > 0 && ptr) onData(Buffer.from(koffi.decode(ptr, koffi.array('uint8', len, 'Typed')))); }, koffi.pointer(T.VoiceDataCb));
     const handle = F.NET_DVR_StartVoiceCom_MR_V30(this.userId, voiceChannel, cb, null);
     if (handle < 0) { koffi.unregister(cb); throw new SdkError('Two-way audio failed: ' + lastError()); }
+    let pending = Buffer.alloc(0);
+    const FRAME = 160;
     return {
-      codec, sampleRate: rate, channelId: voiceChannel,
-      send: (chunk) => !stopped && F.NET_DVR_VoiceComSendData(handle, Buffer.from(chunk.buffer ? chunk.buffer : chunk, chunk.byteOffset || 0, chunk.byteLength || chunk.length), chunk.byteLength || chunk.length),
+      codec, sampleRate: rate, channelId: voiceChannel, rxCodec: 'pcm16', rxSampleRate: rate, txFrameBytes: FRAME,
+      send: (chunk) => {
+        if (stopped) return false;
+        pending = Buffer.concat([pending, Buffer.from(chunk.buffer ? chunk.buffer : chunk, chunk.byteOffset || 0, chunk.byteLength || chunk.length)]);
+        let ok = true;
+        while (pending.length >= FRAME) { const frame = pending.subarray(0, FRAME); pending = pending.subarray(FRAME); if (!F.NET_DVR_VoiceComSendData(handle, Buffer.from(frame), FRAME)) ok = false; }
+        return ok;
+      },
       stop: () => { if (stopped) return; stopped = true; try { F.NET_DVR_StopVoiceCom(handle); } catch (_) {} setTimeout(() => { try { koffi.unregister(cb); } catch (_) {} }, 1000); },
     };
   }

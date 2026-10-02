@@ -91,14 +91,20 @@ export class TalkSession {
       if (out.length) { const bytes = new Uint8Array(out); this.txBytes += bytes.length; api('twoway:send', this.cameraId, bytes).catch(() => {}); }
     };
     this.src.connect(this.proc); this.proc.connect(sink); sink.connect(this.ctx.destination);
-    const dec = this.codec === 'alaw' ? alawToLinear : ulawToLinear;
+    const rxCodec = info.rxCodec || this.codec;
+    const rxRate = info.rxSampleRate || this.rate;
+    const dec = rxCodec === 'alaw' ? alawToLinear : ulawToLinear;
     this.unsubs.push(on('twoway:data', (cameraId, chunk) => {
       if (cameraId !== this.cameraId || !this.ctx) return;
       const u8 = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
       this.rxBytes += u8.length;
-      const buf = this.ctx.createBuffer(1, u8.length, this.rate);
+      const pcm16 = rxCodec === 'pcm16';
+      const n = pcm16 ? Math.floor(u8.length / 2) : u8.length;
+      if (!n) return;
+      const buf = this.ctx.createBuffer(1, n, rxRate);
       const ch = buf.getChannelData(0);
-      for (let i = 0; i < u8.length; i++) ch[i] = dec(u8[i]) / 32768;
+      if (pcm16) { const dv = new DataView(u8.buffer, u8.byteOffset, n * 2); for (let i = 0; i < n; i++) ch[i] = dv.getInt16(i * 2, true) / 32768; }
+      else for (let i = 0; i < n; i++) ch[i] = dec(u8[i]) / 32768;
       const node = this.ctx.createBufferSource(); node.buffer = buf; node.connect(this.ctx.destination);
       const now = this.ctx.currentTime;
       if (this.playHead < now + 0.05) this.playHead = now + 0.1;

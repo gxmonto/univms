@@ -244,7 +244,7 @@ function register(ctx) {
       const v = await driver.sdk.startVoice(voiceChan, (chunk) => { if (!wc.isDestroyed()) wc.send('twoway:data', cameraId, chunk); });
       const sess = { send: (c) => v.send(c), close: async () => { v.stop(); talks.delete(key); if (!wc.isDestroyed()) wc.send('twoway:end', cameraId, {}); }, bytesOut: 0 };
       talks.set(key, sess);
-      return { channelId: voiceChan, mapping: target.channelId ? 'manual' : 'camera', codec: v.codec, sampleRate: v.sampleRate, via: 'sdk' };
+      return { channelId: voiceChan, mapping: target.channelId ? 'manual' : 'camera', codec: v.codec, sampleRate: v.sampleRate, rxCodec: v.rxCodec, rxSampleRate: v.rxSampleRate, via: 'sdk' };
     }
     const s = new TwoWayAudioSession(driver, target);
     talks.set(key, s);
@@ -257,6 +257,19 @@ function register(ctx) {
   h('twoway:send', (e, cameraId, chunk) => { const s = talks.get(talkKey(e, cameraId)); if (s) s.send(chunk); return !!s; });
   h('twoway:stop', async (e, cameraId) => { const s = talks.get(talkKey(e, cameraId)); if (s) await s.close(); return true; });
   h('twoway:active', () => [...talks.keys()]);
+
+  // ---------- Hik-Connect / Guarding Vision + device QR ----------
+  const hikDriver = (deviceId) => { const dev = store.getDevice(deviceId); if (!dev || dev.type !== 'hikvision') throw new Error('Hik-Connect settings exist on Hikvision devices only'); return { dev, drv: pool.get(deviceId) }; };
+  h('hikconnect:status', (_e, deviceId) => hikDriver(deviceId).drv.hikConnect());
+  h('hikconnect:set', (_e, { deviceId, enabled, verificationCode }) => hikDriver(deviceId).drv.setHikConnect({ enabled, verificationCode }).then(() => true));
+  h('hikconnect:qr', async (_e, { text }) => require('qrcode').toDataURL(String(text || ''), { margin: 1, width: 512, errorCorrectionLevel: 'M' }));
+  h('hikconnect:saveQr', async (e, { deviceId, text }) => {
+    const dev = store.getDevice(deviceId);
+    const r = await dialog.showSaveDialog(BrowserWindow.fromWebContents(e.sender), { defaultPath: `${safeName(dev ? dev.name : 'device')}-hikconnect-qr.png`, filters: [{ name: 'PNG image', extensions: ['png'] }] });
+    if (r.canceled) return null;
+    await require('qrcode').toFile(r.filePath, String(text || ''), { margin: 2, width: 800, errorCorrectionLevel: 'M' });
+    return r.filePath;
+  });
 
   // ---------- smart event rules (Hikvision) ----------
   const rulesDriver = (cameraId) => { const { dev, driver, channel } = camInfo(cameraId); if (dev.type !== 'hikvision') throw new Error('Event rules can be edited on Hikvision devices only'); return { driver, channel }; };

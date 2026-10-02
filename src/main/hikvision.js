@@ -374,6 +374,33 @@ class HikvisionDevice {
     return out;
   }
 
+  // ---------- Hik-Connect / Guarding Vision (ISAPI "EZVIZ" node) ----------
+  async hikConnect() {
+    let x;
+    try { x = await this.xml('/ISAPI/System/Network/EZVIZ'); }
+    catch (e) { if (e.status === 404 || e.status === 400) return { supported: false }; throw e; }
+    const z = x.EZVIZ || {};
+    const srv = z.serverAddress || {};
+    const info = await this.deviceInfo().catch(() => ({}));
+    const serial = info.serial || '';
+    const short = (serial.match(/(\d{9})(?!.*\d{9})/) || [])[1] || '';
+    return {
+      supported: true, enabled: b(z.enabled), registerStatus: z.registerStatus || z.status, serverAddress: srv.hostName || srv.ipAddress || (typeof srv === 'string' ? srv : ''),
+      verificationCode: z.verificationCode || '', verificationCodeReadable: !!z.verificationCode, serial, shortSerial: short, model: info.model, raw: z,
+    };
+  }
+  async setHikConnect({ enabled, verificationCode }) {
+    const res = await this.get('/ISAPI/System/Network/EZVIZ');
+    const cfg = parser.parse(res.text);
+    const z = cfg.EZVIZ || (cfg.EZVIZ = {});
+    if (enabled !== undefined) z.enabled = enabled ? 'true' : 'false';
+    if (verificationCode) z.verificationCode = verificationCode;
+    const { XMLBuilder } = require('fast-xml-parser');
+    let xml = new XMLBuilder({ ignoreAttributes: false, attributeNamePrefix: '@_', format: false }).build(cfg);
+    if (!/^<\?xml/.test(xml)) xml = '<?xml version="1.0" encoding="UTF-8"?>' + xml;
+    return this.put('/ISAPI/System/Network/EZVIZ', xml, { timeout: 15000 });
+  }
+
   // ---------- smart event rules (motion / line crossing / intrusion) ----------
   // Configurations are read as XML, edited as objects and written back with the same structure,
   // so unknown device-specific fields survive the round trip.
