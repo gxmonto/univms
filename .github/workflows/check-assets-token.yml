@@ -1,0 +1,19 @@
+name: Check assets token
+
+# Manual: verifies that the ASSETS_TOKEN secret can download the Hikvision SDK runtime from gxmonto/univms-assets.
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fetch SDK runtime with ASSETS_TOKEN
+        run: node scripts/fetch-hiksdk.js linux x64
+        env:
+          ASSETS_TOKEN: ${{ secrets.ASSETS_TOKEN }}
+          UNIVMS_HIKSDK_REQUIRED: '1'
