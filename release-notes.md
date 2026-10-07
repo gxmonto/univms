@@ -1,1 +1,2 @@
-- Internal cleanup: removed unused code paths and settings (no visible change).
+- Start page: a Control Panel with one tile per module opens first, like iVMS-4200.
+- Cameras that were playing when the app closed are no longer reopened at the next start (a bad stream made the app crash in a loop); the layout is kept, and the tiles still come back when switching between modules in the same session. A startup view set in Main View → Views still loads. After a video crash the app reopens without the cameras.
