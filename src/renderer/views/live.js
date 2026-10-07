@@ -28,7 +28,11 @@ let tree, ptz, sideRight, tourTimer = null, tourIdx = 0, currentViewId = null, p
 let unsubs = [];
 
 const persistState = () => {
-  try { localStorage.setItem('live.state', JSON.stringify({ layoutId, customLayout, cells: tiles.map((t) => (t.cameraId ? { cameraId: t.cameraId, stream: t.stream } : null)), currentViewId })); } catch (_) {}
+  // layout survives restarts; the open cameras only survive view switches within this session (see restore below)
+  try {
+    localStorage.setItem('live.state', JSON.stringify({ layoutId, customLayout, currentViewId }));
+    sessionStorage.setItem('live.cells', JSON.stringify(tiles.map((t) => (t.cameraId ? { cameraId: t.cameraId, stream: t.stream } : null))));
+  } catch (_) {}
 };
 
 function layoutDef() { return customLayout || LAYOUTS[layoutId] || LAYOUTS['4']; }
@@ -527,9 +531,12 @@ export function mount(container, p = {}) {
     const startup = state.settings.startupView && state.views.find((v) => v.id === state.settings.startupView);
     if (startup && !p.cameraId && !sessionStorage.getItem('live.booted')) { renderGrid(true); loadView(startup); restored = true; }
     else if (saved) {
+      // Cameras open at the last exit are NOT reopened after a restart (a bad stream at start crashed the app in a loop);
+      // only the layout is. Within a session (view switch) the tiles come back from sessionStorage.
       layoutId = saved.layoutId || '4'; customLayout = saved.custom || saved.customLayout || null; currentViewId = saved.currentViewId || null;
       renderGrid(true);
-      (saved.cells || []).forEach((c, i) => { if (c && c.cameraId && cameraById(c.cameraId)) assign(i, c.cameraId, c.stream); });
+      const cells = JSON.parse(sessionStorage.getItem('live.cells') || '[]');
+      cells.forEach((c, i) => { if (c && c.cameraId && cameraById(c.cameraId)) assign(i, c.cameraId, c.stream); });
       restored = true;
     }
   } catch (_) {}

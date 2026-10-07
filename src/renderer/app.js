@@ -10,9 +10,11 @@ import * as logs from './views/logs.js';
 import * as maintenance from './views/maintenance.js';
 import * as settings from './views/settings.js';
 import * as about from './views/about.js';
+import * as home from './views/home.js';
 import { initUpdates } from './updates.js';
 
 const VIEWS = [
+  { id: 'home', label: 'Control Panel', short: 'Home', icon: 'grid', mod: home },
   { id: 'live', label: 'Main View', short: 'Live View', icon: 'live', mod: live },
   { id: 'playback', label: 'Remote Playback', short: 'Playback', icon: 'playback', mod: playback },
   { id: 'events', label: 'Event Center', short: 'Events', icon: 'events', mod: events },
@@ -193,8 +195,10 @@ async function boot() {
   document.addEventListener('dragover', (e) => e.preventDefault());
   document.addEventListener('drop', (e) => e.preventDefault());
 
-  const startView = params.get('view') || (isAux ? 'live' : localStorage.getItem('app.lastView') || 'live');
-  navigate(VIEWS.some((v) => v.id === startView) ? startView : 'live');
+  // After a renderer crash the main process reloads with ?crashed=1: never reopen the cameras that were playing
+  if (params.get('crashed')) { try { sessionStorage.removeItem('live.cells'); } catch (_) {} toast('The video view crashed and was reopened; cameras were not reloaded', 'warn', 8000); }
+  const startView = params.get('view') || (isAux ? 'live' : 'home');
+  navigate(VIEWS.some((v) => v.id === startView) ? startView : 'home');
 }
 
 // Smoke-test hook used by `npm run smoke`

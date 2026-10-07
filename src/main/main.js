@@ -115,7 +115,7 @@ if (!gotLock && !SMOKE && !E2E) {
       rendererRestarts = rendererRestarts.filter((t) => now - t < 60000);
       if (rendererRestarts.length >= 3) { log('renderer crashed repeatedly, not reloading'); return; }
       rendererRestarts.push(now);
-      setTimeout(() => { if (!win.isDestroyed()) { log('reloading renderer after', d.reason); wc.reload(); } }, 500);
+      setTimeout(() => { if (!win.isDestroyed()) { log('reloading renderer after', d.reason); win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'), { query: { ...Object.fromEntries(q), crashed: '1' } }); } }, 500);
     });
     win.on('close', (e) => {
       if (!params.aux && store.getSettings().minimizeToTray && !app.isQuitting && tray) { e.preventDefault(); win.hide(); }
