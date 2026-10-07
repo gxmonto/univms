@@ -149,7 +149,7 @@ async function boot() {
   };
   on('window:state', applyWinState);
   api('window:isMaximized').then((m) => applyWinState({ maximized: m, fullscreen: false })).catch(() => {});
-  document.getElementById('topbar').addEventListener('dblclick', (e) => { if (e.target.closest('button, input, select, nav')) return; api('window:toggleMaximize'); });
+  document.getElementById('topbar').addEventListener('dblclick', (e) => { if (e.target.closest('button, input, select, a')) return; api('window:toggleMaximize'); });
 
   state.info = await api('app:info');
   await loadAll();

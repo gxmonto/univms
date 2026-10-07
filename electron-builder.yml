@@ -48,6 +48,8 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: UniVMS
+  # uninstalling removes %APPDATA%\UniVMS (config, logs, key); the updater's silent reinstall keeps it (isUpdated path)
+  deleteAppDataOnUninstall: true
 
 portable:
   artifactName: ${productName}-${version}-portable.${ext}
