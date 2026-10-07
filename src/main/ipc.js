@@ -51,7 +51,6 @@ function register(ctx) {
     version: app.getVersion(), name: app.getName(), platform: process.platform, userData: app.getPath('userData'),
     ffmpeg: ffmpegBin.status(store.getSettings()), ...dirs(), locked: !!ctx.locked, hiksdk: hiksdk.status(),
   }));
-  h('app:openExternal', (_e, url) => shell.openExternal(url));
   h('app:changelog', (_e, version) => {
     // Section of CHANGELOG.md for a version (bundled with the app)
     for (const p of [path.join(app.getAppPath(), 'CHANGELOG.md'), path.join(__dirname, '..', '..', 'CHANGELOG.md')]) {
@@ -74,7 +73,6 @@ function register(ctx) {
   h('updates:configure', (_e, patch) => { const u = { ...store.getSettings().updates, ...patch }; store.setSettings({ updates: u }); if (ctx.updater) ctx.updater.configure(u); return u; });
   h('app:openPath', (_e, p) => shell.openPath(p));
   h('app:showInFolder', (_e, p) => shell.showItemInFolder(p));
-  h('app:quit', () => app.quit());
   h('window:fullscreen', (e, on) => { const w = BrowserWindow.fromWebContents(e.sender); if (w) w.setFullScreen(on === undefined ? !w.isFullScreen() : !!on); return w ? w.isFullScreen() : false; });
   h('window:openAux', (_e, params) => { createWindow(params || {}); return true; });
   h('window:minimize', (e) => { const w = BrowserWindow.fromWebContents(e.sender); w && w.minimize(); });
@@ -185,8 +183,6 @@ function register(ctx) {
     ]);
     return { info, status, storage, time, network, users };
   });
-  h('devices:storage', (_e, id) => pool.get(id).storage());
-  h('devices:time', (_e, id) => pool.get(id).time());
   h('devices:syncTime', (_e, id) => pool.get(id).setTimeNow());
   h('devices:reboot', (_e, id) => pool.get(id).reboot());
   h('devices:logs', (_e, { id, start, end }) => pool.get(id).logs(start, end));
@@ -257,13 +253,11 @@ function register(ctx) {
   });
   h('twoway:send', (e, cameraId, chunk) => { const s = talks.get(talkKey(e, cameraId)); if (s) s.send(chunk); return !!s; });
   h('twoway:stop', async (e, cameraId) => { const s = talks.get(talkKey(e, cameraId)); if (s) await s.close(); return true; });
-  h('twoway:active', () => [...talks.keys()]);
 
   // ---------- Hik-Connect / Guarding Vision + device QR ----------
   const hikDriver = (deviceId) => { const dev = store.getDevice(deviceId); if (!dev || dev.type !== 'hikvision') throw new Error('Hik-Connect settings exist on Hikvision devices only'); return { dev, drv: pool.get(deviceId) }; };
   h('hikconnect:status', (_e, deviceId) => hikDriver(deviceId).drv.hikConnect());
   h('hikconnect:set', (_e, { deviceId, enabled, verificationCode }) => hikDriver(deviceId).drv.setHikConnect({ enabled, verificationCode }).then(() => true));
-  h('hikconnect:qr', async (_e, { text }) => require('qrcode').toDataURL(String(text || ''), { margin: 1, width: 512, errorCorrectionLevel: 'M' }));
   // iVMS-4200-style password-protected device export QR (carries host/port/user/password for the mobile app's IP-device import)
   h('hikconnect:deviceQr', async (_e, { deviceId, password, host, port, name }) => {
     const dev = store.getDeviceWithSecret(deviceId);
@@ -306,10 +300,6 @@ function register(ctx) {
     const { driver, channel } = camInfo(cameraId);
     const r = await driver.snapshot(channel, stream || 'main', time);
     return { contentType: r.contentType, data: r.data.toString('base64') };
-  });
-  h('cameras:liveUrl', (_e, { cameraId, stream }) => {
-    const { driver, channel } = camInfo(cameraId);
-    return driver.liveUrl(channel, stream);
   });
 
   // ---------- streaming ----------

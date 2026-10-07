@@ -319,4 +319,3 @@ export class Player {
   }
 }
 
-export function activePlayerCount() { return players.size; }

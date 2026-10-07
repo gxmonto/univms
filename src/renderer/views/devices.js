@@ -65,7 +65,7 @@ function discoverDialog() {
   const scan = async () => {
     tb.innerHTML = ''; status.textContent = 'Scanning…';
     try {
-      const list = await api('discovery:scan', { sadp: true, onvif: true, dw: dwChk.checked });
+      const list = await api('discovery:scan', { dw: dwChk.checked });
       status.textContent = `${list.length} device(s) found`;
       for (const d of list) {
         const known = state.devices.some((x) => x.host === d.ip);

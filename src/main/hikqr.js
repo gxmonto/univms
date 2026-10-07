@@ -53,4 +53,4 @@ function decodeDeviceQr(text) {
   return { header, password, timestamp, devices };
 }
 
-module.exports = { encodeDeviceQr, decodeDeviceQr, hikEncrypt, hikDecrypt, HEADER };
+module.exports = { encodeDeviceQr, decodeDeviceQr, hikEncrypt, hikDecrypt };

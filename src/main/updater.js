@@ -227,4 +227,4 @@ function notesText(notes) {
   return null;
 }
 
-module.exports = { Updater, compareVersions, feedFromUrl, isWindowsPortable, linuxPackageKind };
+module.exports = { Updater, compareVersions, feedFromUrl };

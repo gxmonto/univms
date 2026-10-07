@@ -171,4 +171,4 @@ function streamRequest(urlStr, { method = 'PUT', headers = {}, auth, timeout = 0
   return { req, response };
 }
 
-module.exports = { request, rawRequest, streamRequest, HttpError, parseAuthHeader, digestAuthorization, _challenges: challenges };
+module.exports = { request, rawRequest, streamRequest, HttpError, parseAuthHeader };

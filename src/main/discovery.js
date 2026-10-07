@@ -140,7 +140,8 @@ async function dwScan(timeoutMs = 2500) {
   return found;
 }
 
-async function discover({ sadp = true, onvif = true, dw = false } = {}) {
+async function discover({ dw = false } = {}) {
+  const sadp = true, onvif = true;
   const [a, b, c] = await Promise.all([sadp ? sadpProbe() : [], onvif ? onvifProbe() : [], dw ? dwScan() : []]);
   // Merge ONVIF info into SADP entries with the same IP
   const byIp = new Map();
@@ -152,4 +153,4 @@ async function discover({ sadp = true, onvif = true, dw = false } = {}) {
   return [...byIp.values()].sort((x, y) => x.ip.split('.').map(Number).reduce((acc, v) => acc * 256 + v, 0) - y.ip.split('.').map(Number).reduce((acc, v) => acc * 256 + v, 0));
 }
 
-module.exports = { discover, sadpProbe, onvifProbe, dwScan };
+module.exports = { discover };

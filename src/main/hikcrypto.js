@@ -86,4 +86,4 @@ function streamKey(code) {
   return k;
 }
 
-module.exports = { Rijndael, makeCipher, streamKey, SBOX, INV_SBOX };
+module.exports = { Rijndael, makeCipher, streamKey };

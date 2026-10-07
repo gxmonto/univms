@@ -6,7 +6,25 @@ const path = require('path');
 const crypto = require('crypto');
 const { spawnSync } = require('child_process');
 const { Rijndael, makeCipher, streamKey } = require('../src/main/hikcrypto');
-const { PsDecryptor, TsDecryptor, transformBuffer } = require('../src/main/hikstream');
+const { PsDecryptor, TsDecryptor } = require('../src/main/hikstream');
+
+/** Run a whole buffer through a decryptor (tests, probes). Resolves { data, state, stats }. */
+function transformBuffer(Cls, opts, data, chunkSizes) {
+  return new Promise((resolve, reject) => {
+    const t = new Cls(opts);
+    const out = [];
+    t.on('data', (d) => out.push(d));
+    t.on('error', reject);
+    t.on('end', () => resolve({ data: Buffer.concat(out), state: t.state, stats: t.stats }));
+    let pos = 0, i = 0;
+    while (pos < data.length) {
+      const n = chunkSizes ? chunkSizes[i++ % chunkSizes.length] : data.length;
+      t.write(data.subarray(pos, pos + n)); pos += n;
+    }
+    t.end();
+  });
+}
+
 
 // deterministic "random" bytes without 0x00 (no accidental start codes, no trailing zeros)
 function rnd(seed, n) {

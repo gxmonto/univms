@@ -6,7 +6,7 @@ let dialog = null;      // { close, body } for the active update modal
 let status = null;
 let shownFor = null;    // version for which the dialog was auto-shown this session
 
-export function renderNotes(text) {
+function renderNotes(text) {
   // Minimal markdown: headings, bullets, paragraphs, inline code
   const lines = String(text || '').split(/\r?\n/);
   const out = [];

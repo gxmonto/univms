@@ -24,7 +24,6 @@ export async function loadAll() {
 
 export const cameraById = (id) => state.cameras.find((c) => c.id === id) || null;
 export const deviceById = (id) => state.devices.find((d) => d.id === id) || null;
-export const cameraLabel = (id) => { const c = cameraById(id); return c ? c.name : id; };
 
 // ---------- DOM helpers ----------
 export function el(tag, attrs = {}, ...children) {
@@ -57,7 +56,6 @@ export const iconBtn = (icon, title, onClick, cls = '') => el('button', { class:
 const p2 = (n) => String(n).padStart(2, '0');
 export const fmtTime = (ms) => { if (!ms) return '-'; const d = new Date(ms); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`; };
 export const fmtClock = (ms) => { const d = new Date(ms); return `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`; };
-export const fmtDate = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`; };
 export const fmtBytes = (b) => { if (!b && b !== 0) return '-'; const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0; while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; } return `${b.toFixed(i ? 1 : 0)} ${u[i]}`; };
 export const fmtDur = (s) => { s = Math.max(0, Math.round(s)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return h ? `${h}h ${p2(m)}m` : m ? `${m}m ${p2(x)}s` : `${x}s`; };
 export const startOfDay = (ms) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); };
@@ -127,8 +125,6 @@ export function contextMenu(x, y, items) {
 }
 
 // ---------- misc ----------
-export const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
-export const isDevType = (c, t) => (c.deviceType || (deviceById(c.deviceId) || {}).type) === t;
 export function beep() {
   try {
     const ctx = beep.ctx || (beep.ctx = new (window.AudioContext || window.webkitAudioContext)());

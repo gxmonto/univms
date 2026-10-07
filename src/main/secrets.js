@@ -146,16 +146,4 @@ class SecretBox {
   isCurrent(stored) { return !stored || stored.startsWith('aes:'); }
 }
 
-/** Minimal box used when no key directory is available (unit tests): base64 only, never writes files. */
-class PlainBox {
-  encrypt(plain) { return plain ? 'b64:' + Buffer.from(String(plain), 'utf8').toString('base64') : ''; }
-  decrypt(stored) {
-    if (!stored) return '';
-    if (stored.startsWith('b64:')) return Buffer.from(stored.slice(4), 'base64').toString('utf8');
-    if (stored.startsWith('aes:') || stored.startsWith('enc:')) throw new SecretError('no encryption key available for this value');
-    return stored;
-  }
-  isCurrent(stored) { return !stored || stored.startsWith('b64:'); }
-}
-
-module.exports = { SecretBox, PlainBox, SecretError, getDpapi };
+module.exports = { SecretBox, SecretError, getDpapi };

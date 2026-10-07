@@ -376,21 +376,4 @@ class TsDecryptor extends ContainerDecryptor {
   }
 }
 
-/** Run a whole buffer through a decryptor (tests, probes). Resolves { data, state, stats }. */
-function transformBuffer(Cls, opts, data, chunkSizes) {
-  return new Promise((resolve, reject) => {
-    const t = new Cls(opts);
-    const out = [];
-    t.on('data', (d) => out.push(d));
-    t.on('error', reject);
-    t.on('end', () => resolve({ data: Buffer.concat(out), state: t.state, stats: t.stats }));
-    let pos = 0, i = 0;
-    while (pos < data.length) {
-      const n = chunkSizes ? chunkSizes[i++ % chunkSizes.length] : data.length;
-      t.write(data.subarray(pos, pos + n)); pos += n;
-    }
-    t.end();
-  });
-}
-
-module.exports = { NalDecryptor, PsDecryptor, TsDecryptor, PacketQueue, transformBuffer, ENC_PREFIX };
+module.exports = { PsDecryptor, TsDecryptor };

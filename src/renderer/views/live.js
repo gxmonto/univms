@@ -8,7 +8,7 @@ import { Dewarper, DEFAULT_DEWARP } from '../dewarp.js';
 import { openRulesEditor } from '../rules.js';
 import { setStreamKey } from '../streamkey.js';
 
-export const LAYOUTS = {
+const LAYOUTS = {
   '1': { n: 1, cols: 1, rows: 1 },
   '4': { n: 4, cols: 2, rows: 2 },
   '6': { n: 6, cols: 3, rows: 3, areas: ['a a b', 'a a c', 'd e f'] },
@@ -391,7 +391,7 @@ function renderGrid(rebuild = true) {
   emit('playing');
   persistState();
 }
-export function setLayout(id, keep = true) {
+function setLayout(id, keep = true) {
   customLayout = null; layoutId = id; maximizedIdx = -1;
   renderGrid(true);
 }
@@ -414,7 +414,7 @@ async function saveView(asNew = false) {
   toast(`View "${name}" saved`, 'ok');
   persistState();
 }
-export function loadView(v, { keepTour = false } = {}) {
+function loadView(v, { keepTour = false } = {}) {
   if (!keepTour) stopTour(false);
   stopAll();
   if (v.custom) { customLayout = v.custom; } else { customLayout = null; layoutId = v.layoutId || '4'; }

@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { PlainBox, SecretError } = require('./secrets');
+const { SecretError } = require('./secrets');
 
 const DEFAULTS = {
   version: 1,
@@ -36,19 +36,17 @@ const DEFAULTS = {
     autoSwitchInterval: 10,
     hwDecode: true,
     eventRetention: 2000,
-    language: 'en',
-    theme: 'dark',
   },
 };
 
 class Store {
   /**
    * @param {string} file config path
-   * @param {object|null} secrets SecretBox (see secrets.js); null = base64 fallback (unit tests)
+   * @param {object} secrets SecretBox (see secrets.js)
    */
   constructor(file, secrets) {
     this.file = file;
-    this.secrets = secrets && typeof secrets.encrypt === 'function' ? secrets : new PlainBox();
+    this.secrets = secrets;
     this.data = JSON.parse(JSON.stringify(DEFAULTS));
     this._saveTimer = null;
     this.load();
@@ -262,4 +260,4 @@ class Store {
   }
 }
 
-module.exports = { Store, DEFAULTS, SecretError };
+module.exports = { Store, SecretError };

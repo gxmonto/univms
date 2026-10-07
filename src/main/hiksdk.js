@@ -388,4 +388,4 @@ function shutdown() {
   if (initialized) { try { F.NET_DVR_Cleanup(); } catch (_) {} initialized = false; }
 }
 
-module.exports = { HikSdkSession, SdkError, available, ensureLoaded, status, shutdown, sdkDir, tcpReachable, _types: () => T };
+module.exports = { HikSdkSession, available, ensureLoaded, status, shutdown, _types: () => T };

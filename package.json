@@ -14,10 +14,9 @@
     "e2e": "node scripts/dev.js e2e",
     "test": "node --test --test-timeout=60000 --test-concurrency=1 \"tests/**/*.test.js\"",
     "fetch-ffmpeg": "node scripts/fetch-ffmpeg.js",
-    "dist:win": "node scripts/fetch-ffmpeg.js win32 x64 && node scripts/fetch-hiksdk.js win32 x64 && node scripts/release-notes.js && electron-builder --win --x64 --publish never",
-    "dist:linux": "node scripts/fetch-ffmpeg.js linux x64 && node scripts/fetch-hiksdk.js linux x64 && node scripts/release-notes.js && electron-builder --linux dir --x64 --publish never && node scripts/package-linux.js",
+    "dist:win": "node scripts/fetch-ffmpeg.js win32 x64 && node scripts/fetch-hiksdk.js win32 x64 && electron-builder --win --x64 --publish never",
+    "dist:linux": "node scripts/fetch-ffmpeg.js linux x64 && node scripts/fetch-hiksdk.js linux x64 && electron-builder --linux dir --x64 --publish never && node scripts/package-linux.js",
     "dist": "npm run dist:win && npm run dist:linux",
-    "dist:linux:wsl": "wsl -d Ubuntu -u root -- bash scripts/build-linux-wsl.sh",
     "release:major": "node scripts/bump.js major",
     "release:minor": "node scripts/bump.js minor",
     "fetch-hiksdk": "node scripts/fetch-hiksdk.js"

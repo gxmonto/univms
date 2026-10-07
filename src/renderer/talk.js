@@ -130,5 +130,4 @@ export class TalkSession {
   }
 }
 
-export const activeTalk = () => active;
 export const codecs = { linearToUlaw, ulawToLinear, linearToAlaw, alawToLinear };
