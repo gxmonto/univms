@@ -87,6 +87,7 @@ Version is `1.X.Y`.
 
 ## Session log
 
+- **2026-10-07 — v1.1.0 released** (user: "publish the fixes"; major bump because stream encryption is a new capability): everything that was under Unreleased since 1.0.0. Installed 1.0.0 copies update silently; their `enc:` passwords are reported "Saved password unreadable" and must be re-entered once. Title-bar dead space fixed, uninstall removes app data.
 - **2026-10-02 — stream encryption**: user's site with "stream encryption" only reconnected; implemented Hikvision NAL-level AES decryption (`hikstream.js`) for SDK PS and RTSP (TS detour), key prompt on the tile / device dialog / device menu, automatic key read over the SDK. Awaiting the user's test on the encrypted site (which transport they use is unknown).
 - **2026-10-02 — after 1.0.0 (unreleased)**: Hik-Connect / Guarding Vision dialog with the password-protected iVMS-style device QR (`src/main/hikqr.js`, verified against a real app export; label QR removed as the app rejected it); SDK live/playback via RealPlay callbacks (PS stream), SDK voice G.711 160-byte frames; console-safe logging (double-click copies never logged/saved); own DPAPI-protected secret key replacing safeStorage (lost-password detection, no empty-password logins); renderer auto-reload; config flushed first on quit. Not released yet — release 1.0.1 only when the user asks.
 
