@@ -7,7 +7,7 @@ const { TYPES, splitCameraId } = require('./drivers');
 const ffmpegBin = require('./ffmpeg');
 const discovery = require('./discovery');
 const { TwoWayAudioSession } = require('./twoway');
-const hiksdk = require('./hiksdk');
+const hiksdk = require('./sdkproxy');
 
 function ts(d = new Date()) {
   const p = (n) => String(n).padStart(2, '0');
@@ -47,9 +47,9 @@ function register(ctx) {
   };
 
   // ---------- app ----------
-  h('app:info', () => ({
+  h('app:info', async () => ({
     version: app.getVersion(), name: app.getName(), platform: process.platform, userData: app.getPath('userData'),
-    ffmpeg: ffmpegBin.status(store.getSettings()), ...dirs(), locked: !!ctx.locked, hiksdk: hiksdk.status(),
+    ffmpeg: ffmpegBin.status(store.getSettings()), ...dirs(), locked: !!ctx.locked, hiksdk: await hiksdk.status(),
   }));
   h('app:changelog', (_e, version) => {
     // Section of CHANGELOG.md for a version (bundled with the app)

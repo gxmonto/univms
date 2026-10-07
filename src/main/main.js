@@ -169,7 +169,8 @@ if (!gotLock && !SMOKE && !E2E) {
     if (store.lostSecrets.length) log('secrets: saved passwords unreadable for devices', store.lostSecrets.join(', '));
     store.onError = (msg) => { log('store error', msg); broadcast('app:error', msg); };
     pool = new DriverPool(store);
-    streams = new StreamManager(() => store.getSettings());
+    streams = new StreamManager(() => store.getSettings()); streams.log = log;
+    require('./sdkproxy').setLog(log);
     hub = new EventHub(store, pool, broadcast);
     Object.assign(ctx, { store, pool, streams, hub, broadcast, createWindow });
     ctx.locked = !!store.getSettings().requireLogin && store.list('users').length > 0 && !store.getSettings().autoLogin;
@@ -217,7 +218,7 @@ if (!gotLock && !SMOKE && !E2E) {
         const result = await win.webContents.executeJavaScript('window.__smoke ? window.__smoke() : "no smoke hook"').catch((e) => 'exec error: ' + e.message);
         log('SMOKE result', result);
         log('SMOKE ffmpeg', JSON.stringify(require('./ffmpeg').status(store.getSettings())));
-        try { const hk = require('./hiksdk'); if (hk.available()) hk.ensureLoaded(); log('SMOKE hiksdk', JSON.stringify(hk.status())); } catch (e) { log('SMOKE hiksdk error', e.message); }
+        try { const hk = require('./sdkproxy'); log('SMOKE hiksdk', JSON.stringify(await hk.status())); if (hk.available()) { const t0 = Date.now(); await hk.HikSdkSession.get({ id: 'smoke', host: '192.0.2.1', port: 8000, username: 'admin', password: 'x' }).login().then(() => log('SMOKE sdk login unexpectedly ok'), (e) => log('SMOKE sdk login via host failed as expected', e.sdkCode, e.message.slice(0, 60), `${Date.now() - t0}ms`)); } } catch (e) { log('SMOKE hiksdk error', e.message); }
         log('SMOKE console errors', errors.length ? errors : 'none');
         app.isQuitting = true;
         ctx.shutdownAll();
@@ -233,7 +234,7 @@ if (!gotLock && !SMOKE && !E2E) {
   // process during teardown (WER dumps in %LOCALAPPDATA%\CrashDumps); app.exit() does not emit will-quit.
   function shutdownAll() {
     // config first: nothing below may prevent it from reaching the disk
-    for (const step of [() => store && store.flush(), () => ctx.updater && ctx.updater.stop(), () => hub && hub.stop(), () => streams && streams.shutdown(), () => require('./hiksdk').shutdown()]) {
+    for (const step of [() => store && store.flush(), () => ctx.updater && ctx.updater.stop(), () => hub && hub.stop(), () => streams && streams.shutdown(), () => require('./sdkproxy').shutdown()]) {
       try { step(); } catch (_) {}
     }
   }

@@ -27,7 +27,7 @@ class HikvisionDevice {
     this.auth = { type: 'digest', username: this.username, password: this.password };
     // transport 'sdk' = Hikvision Device Network SDK on the server port (8000): ISAPI is tunnelled through it
     this.transport = cfg.transport === 'sdk' ? 'sdk' : 'isapi';
-    if (this.transport === 'sdk') this.sdk = require('./hiksdk').HikSdkSession.get({ id: cfg.id, host: this.host, port: Number(cfg.port) || 8000, username: this.username, password: this.password });
+    if (this.transport === 'sdk') this.sdk = require('./sdkproxy').HikSdkSession.get({ id: cfg.id, host: this.host, port: Number(cfg.port) || 8000, username: this.username, password: this.password });
   }
   get usesSdk() { return this.transport === 'sdk'; }
   camKind(channel) { const c = (this.cfg.cameras || []).find((k) => Number(k.channel) === Number(channel)); return c ? c.kind : 'ip'; }

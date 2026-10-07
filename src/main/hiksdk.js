@@ -148,6 +148,21 @@ function tcpReachable(host, port, timeoutMs = 4000) {
   });
 }
 
+/** ISAPI channel numbers (1..N for IP, 1..M analog) -> SDK channel numbers. */
+function sdkChannel(info, channel, kind) {
+  const ch = Number(channel) || 1;
+  if (!info) return ch;
+  if (kind === 'ip' || (info.analogChannels === 0 && info.ipChannels > 0)) return info.startDChan + ch - 1;
+  return ch;
+}
+/** iVMS voice channel for a camera: digital talk channels start at byStartDTalkChan. */
+function voiceChannel(info, channel, kind) {
+  const ch = Number(channel) || 1;
+  if (!info) return ch + 1;
+  if (kind === 'ip' || (info.analogChannels === 0 && info.ipChannels > 0)) return info.startDTalkChan > 0 ? info.startDTalkChan + ch - 1 : ch + 1;
+  return ch;
+}
+
 /** One logged-in SDK connection per device record (shared by all consumers). */
 class HikSdkSession extends EventEmitter {
   constructor(cfg) {
@@ -201,23 +216,8 @@ class HikSdkSession extends EventEmitter {
     HikSdkSession.pool.delete(this.cfg.id);
   }
 
-  /** ISAPI channel numbers (1..N for IP, 1..M analog) -> SDK channel numbers. */
-  sdkChannel(channel, kind) {
-    const ch = Number(channel) || 1;
-    if (!this.info) return ch;
-    if (kind === 'ip' || (this.info.analogChannels === 0 && this.info.ipChannels > 0)) return this.info.startDChan + ch - 1;
-    return ch;
-  }
-  /** iVMS voice channel for a camera: digital talk channels start at byStartDTalkChan. */
-  voiceChannel(channel, kind) {
-    const ch = Number(channel) || 1;
-    if (!this.info) return ch + 1;
-    if (kind === 'ip' || (this.info.analogChannels === 0 && this.info.ipChannels > 0)) {
-      if (this.info.startDTalkChan > 0) return this.info.startDTalkChan + ch - 1;
-      return ch + 1;
-    }
-    return ch;
-  }
+  sdkChannel(channel, kind) { return sdkChannel(this.info, channel, kind); }
+  voiceChannel(channel, kind) { return voiceChannel(this.info, channel, kind); }
 
   /** ISAPI over the SDK connection. Returns { status, text, buffer }. */
   async isapi(method, url, body) {
@@ -388,4 +388,4 @@ function shutdown() {
   if (initialized) { try { F.NET_DVR_Cleanup(); } catch (_) {} initialized = false; }
 }
 
-module.exports = { HikSdkSession, available, ensureLoaded, status, shutdown, _types: () => T };
+module.exports = { HikSdkSession, SdkError, available, ensureLoaded, status, shutdown, sdkChannel, voiceChannel, _types: () => T };

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed: opening a camera on an SDK (port 8000) device could freeze the whole window ("Not Responding") while the recorder was being contacted; the Hikvision SDK now runs in its own helper process.
+
 ## 1.1.2 - 2026-10-07
 
 - Start page: a Control Panel with one tile per module opens first, like iVMS-4200.

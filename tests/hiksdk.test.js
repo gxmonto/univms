@@ -22,4 +22,5 @@ test('Hikvision SDK loads, initializes and reports errors', { skip: !hik.availab
   const s = hik.HikSdkSession.get({ id: 't', host: '127.0.0.1', port: 1, username: 'admin', password: 'x' });
   await assert.rejects(() => s.login(), /not reachable|SDK login failed/);
   s.logout();
+  hik.shutdown(); // NET_DVR_Cleanup before the process exits: exiting with the SDK initialized segfaults intermittently
 });
