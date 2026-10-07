@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-- Internal cleanup: removed unused code paths and settings (no visible change).
+## 1.1.1 - 2026-10-07
 
+- Internal cleanup: removed unused code paths and settings (no visible change).
 ## 1.1.0 - 2026-10-07
 
 - Hik-Connect / Guarding Vision dialog (device right-click or Remote config): service status, enable/disable, set the verification code, and the iVMS-4200-style **password-protected device QR** (address, port, user and password in Hikvision's encrypted format) that Hik-Connect / Guarding Vision import after asking for the QR password, with PNG export and print.
