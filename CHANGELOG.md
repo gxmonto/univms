@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.0 - 2026-10-07
+
 - Hik-Connect / Guarding Vision dialog (device right-click or Remote config): service status, enable/disable, set the verification code, and the iVMS-4200-style **password-protected device QR** (address, port, user and password in Hikvision's encrypted format) that Hik-Connect / Guarding Vision import after asking for the QR password, with PNG export and print.
 - SDK connection: live view and playback now read Hikvision's private PS stream from the RealPlay/playback callbacks (the "standard stream" callback delivers RTP packets, which ffmpeg could not parse); two-way audio over the SDK sends G.711 in 160-byte frames and plays the PCM the SDK returns.
 - Stream failures are written to the main log (ffmpeg exit code, bytes in/out, last error lines).
@@ -11,7 +13,6 @@
 - Fixed: the empty part of the title bar next to the module buttons could not be used to drag the window (and double-clicking it did not maximize).
 - Uninstalling the Windows app now removes its data folder (configuration, logs, key); updates keep it.
 - **Stream encryption** (Hikvision Platform Access / Hik-Connect → "Stream Encryption"): encrypted live view and playback now play once the key (the device's verification code) is entered, like iVMS-4200. A tile that receives an encrypted stream says so and offers to enter the key instead of reconnecting forever; the key can also be set in the device dialog or the device right-click menu, is stored encrypted with the device, and over the SDK connection the key is read from the device automatically. H.264 and H.265, both Hikvision AES variants, devices that encrypt all frames or only key frames.
-
 ## 1.0.0 - 2026-10-02
 
 First release of UniVMS, a multi-vendor video management client for Hikvision devices and DW Spectrum servers.
