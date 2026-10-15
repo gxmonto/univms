@@ -1,12 +1,13 @@
 // Maintenance: device health cards, storage, time sync, reboot, stream statistics, config backup/restore
 import { api, state, bus, el, svg, btn, toast, confirm, promptText, fmtTime, fmtBytes, fmtDur, setStatus, modal } from '../core.js';
 
+const typeLabel = (t) => ({ hikvision: 'Hikvision', dahua: 'Dahua', dwspectrum: 'DW Spectrum' }[t] || t);
 let root, timer, unsubs = [];
 
 async function deviceCard(d) {
   const st = state.status[d.id] || {};
   const card = el('div', { class: 'card' });
-  const head = el('div', { class: 'row' }, el('span', { class: `status-dot ${st.online === true ? 'on' : st.online === false ? 'off' : 'unknown'}` }), el('strong', { class: 'grow' }, d.name), el('span', { class: 'dim small' }, d.type === 'dwspectrum' ? 'DW Spectrum' : 'Hikvision'));
+  const head = el('div', { class: 'row' }, el('span', { class: `status-dot ${st.online === true ? 'on' : st.online === false ? 'off' : 'unknown'}` }), el('strong', { class: 'grow' }, d.name), el('span', { class: 'dim small' }, typeLabel(d.type)));
   const body = el('div', { class: 'dim small' }, st.online === false ? 'Offline: ' + (st.error || '') : 'Loading…');
   card.append(head, body);
   if (st.online !== false) {

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- New vendor: **Dahua** NVR / XVR / IPC and Dahua OEMs (Amcrest, Lorex, IC Realtime) over the HTTP API: live view, playback by time, snapshots, PTZ with presets and tours, recording search, live events, storage, users, logs, time sync, reboot.
+- Device types relabelled: Hikvision covers LTS, ENS and INVID Paramont (Hikvision OEM); DW Spectrum covers Nx Witness.
+
 - Fixed: opening a camera on an SDK (port 8000) device could freeze the whole window ("Not Responding") while the recorder was being contacted; the Hikvision SDK now runs in its own helper process.
 
 ## 1.1.2 - 2026-10-07

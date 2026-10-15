@@ -1,10 +1,12 @@
 'use strict';
 const { HikvisionDevice } = require('./hikvision');
 const { DWSpectrumServer } = require('./dwspectrum');
+const { DahuaDevice } = require('./dahua');
 
 const TYPES = {
-  hikvision: { label: 'Hikvision NVR / DVR / IPC (ISAPI)', defaultPort: 80, cls: HikvisionDevice },
-  dwspectrum: { label: 'DW Spectrum server', defaultPort: 7001, cls: DWSpectrumServer },
+  hikvision: { label: 'Hikvision / LTS / ENS / INVID Paramont NVR, DVR, IPC', defaultPort: 80, cls: HikvisionDevice },
+  dahua: { label: 'Dahua / Amcrest / Lorex NVR, XVR, IPC (HTTP API)', defaultPort: 80, cls: DahuaDevice },
+  dwspectrum: { label: 'DW Spectrum / Nx Witness server', defaultPort: 7001, cls: DWSpectrumServer },
 };
 
 /** Driver instances cached per device id; invalidated when the device record changes. */

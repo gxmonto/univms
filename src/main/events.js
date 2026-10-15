@@ -112,8 +112,8 @@ class EventHub extends EventEmitter {
     if (!dev || dev.eventsDisabled || this.authBlocked(deviceId)) return;
     const sub = { stopped: false, close: null, timer: null, backoff: 2000 };
     this.subs.set(deviceId, sub);
-    if (dev.type === 'hikvision') this._hikLoop(deviceId, sub);
-    else if (dev.type === 'dwspectrum') this._dwLoop(deviceId, sub);
+    if (dev.type === 'dwspectrum') this._dwLoop(deviceId, sub);
+    else this._hikLoop(deviceId, sub); // alertStream(): Hikvision ISAPI/SDK, Dahua eventManager
   }
 
   unsubscribe(deviceId) {
