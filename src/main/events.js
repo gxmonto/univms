@@ -112,8 +112,10 @@ class EventHub extends EventEmitter {
     if (!dev || dev.eventsDisabled || this.authBlocked(deviceId)) return;
     const sub = { stopped: false, close: null, timer: null, backoff: 2000 };
     this.subs.set(deviceId, sub);
-    if (dev.type === 'dwspectrum') this._dwLoop(deviceId, sub);
-    else this._hikLoop(deviceId, sub); // alertStream(): Hikvision ISAPI/SDK, Dahua eventManager
+    let drv; try { drv = this.pool.get(deviceId); } catch (_) { this.subs.delete(deviceId); return; }
+    if (typeof drv.alertStream === 'function') this._hikLoop(deviceId, sub);      // push stream: Hikvision, Dahua, Hanwha
+    else if (typeof drv.events === 'function') this._dwLoop(deviceId, sub);       // polling: DW Spectrum, Reolink
+    else this.subs.delete(deviceId);                                            // no events: Uniview
   }
 
   unsubscribe(deviceId) {

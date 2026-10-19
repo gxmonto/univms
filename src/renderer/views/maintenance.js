@@ -1,7 +1,7 @@
 // Maintenance: device health cards, storage, time sync, reboot, stream statistics, config backup/restore
 import { api, state, bus, el, svg, btn, toast, confirm, promptText, fmtTime, fmtBytes, fmtDur, setStatus, modal } from '../core.js';
 
-const typeLabel = (t) => ({ hikvision: 'Hikvision', dahua: 'Dahua', dwspectrum: 'DW Spectrum' }[t] || t);
+const typeLabel = (t) => ({ hikvision: 'Hikvision', dahua: 'Dahua', uniview: 'Uniview', hanwha: 'Hanwha', reolink: 'Reolink', dwspectrum: 'DW Spectrum' }[t] || t);
 let root, timer, unsubs = [];
 
 async function deviceCard(d) {

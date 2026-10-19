@@ -318,7 +318,7 @@ function register(ctx) {
         : driver.sdk.startLive(channel, driver.camKind(channel), opts.stream || store.getSettings().defaultStream || 'sub', write),
       { decrypt: { key: streamKey } });
     }
-    const url = opts.kind === 'playback' ? driver.playbackUrl(channel, opts.startMs, opts.endMs) : driver.liveUrl(channel, opts.stream || store.getSettings().defaultStream || 'sub');
+    const url = opts.kind === 'playback' ? await driver.playbackUrl(channel, opts.startMs, opts.endMs) : driver.liveUrl(channel, opts.stream || store.getSettings().defaultStream || 'sub');
     return streams.start(e.sender, { ...opts, url, cameraName: cam.name, encryption: hik ? { key: streamKey, probe: true, deviceId: dev.id } : undefined });
   });
   h('devices:setStreamKey', (_e, { deviceId, key }) => {
@@ -394,11 +394,11 @@ function register(ctx) {
     return { segments, bookmarks };
   });
   h('playback:days', (_e, { cameraId, year, month }) => { const { driver, channel } = camInfo(cameraId); return driver.recordingDays(channel, year, month); });
-  h('export:clip', (e, { cameraId, start, end }) => {
+  h('export:clip', async (e, { cameraId, start, end }) => {
     const { driver, channel, cam, dev } = camInfo(cameraId);
     const id = 'exp_' + crypto.randomBytes(4).toString('hex');
     const file = path.join(dirs().recordDir, 'Exports', `${safeName(dev.name)}_${safeName(cam.name)}_${ts(new Date(start))}_${Math.round((end - start) / 1000)}s.mp4`);
-    streams.exportClip(id, driver.playbackUrl(channel, start, end), file, (end - start) / 1000,
+    streams.exportClip(id, await driver.playbackUrl(channel, start, end), file, (end - start) / 1000,
       (p) => { if (!e.sender.isDestroyed()) e.sender.send('export:progress', { id, progress: p }); },
       (r) => broadcast('export:end', { id, ...r }));
     return { id, file };

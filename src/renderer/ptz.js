@@ -75,7 +75,7 @@ export function createPtzPanel(container) {
     if (!cameraId) return;
     const cam = cameraById(cameraId);
     const dev = deviceById(cam && cam.deviceId) || {};
-    const idStr = await promptText('New preset', dev.type === 'hikvision' ? 'Preset number (1-300)' : 'Preset id', dev.type === 'hikvision' ? String((presetsList.children.length || 0) + 1) : 'preset' + Date.now().toString(36));
+    const idStr = await promptText('New preset', dev.type !== 'dwspectrum' ? 'Preset number' : 'Preset id', dev.type !== 'dwspectrum' ? String((presetsList.children.length || 0) + 1) : 'preset' + Date.now().toString(36));
     if (idStr === null) return;
     const name = await promptText('New preset', 'Preset name', 'Preset ' + idStr);
     if (name === null) return;
