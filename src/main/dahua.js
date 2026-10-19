@@ -69,19 +69,18 @@ class DahuaDevice {
   async cameras() {
     const kv = await this.get('/cgi-bin/configManager.cgi?action=getConfig&name=ChannelTitle');
     const titles = rows(kv, 'table.ChannelTitle');
-    let states = [];
-    try { states = rows(await this.get('/cgi-bin/LogicDeviceManager.cgi?action=getCameraState&uniqueChannels[0]=-1'), 'states'); } catch (_) {}
+    // recorder: which channels have a camera attached (getCameraState is "501 Not Implemented" on some firmware → getCameraAll)
+    let attached = null;
+    try { attached = new Map(rows(await this.get('/cgi-bin/LogicDeviceManager.cgi?action=getCameraState&uniqueChannels[0]=-1'), 'states').map((s) => [Number(s.channel), /connected/i.test(s.connectionState || '')])); }
+    catch (_) { try { attached = new Map(rows(await this.get('/cgi-bin/LogicDeviceManager.cgi?action=getCameraAll'), 'camera').map((c) => [Number(c.UniqueChannel !== undefined ? c.UniqueChannel : c.Channel), c.Enable !== 'false' && c['DeviceInfo.Enable'] !== 'false'])); } catch (_) {} } // UniqueChannel = recorder slot (0-based); Channel is the camera's own input
     let enc = {};
     try { enc = await this.get('/cgi-bin/configManager.cgi?action=getConfig&name=Encode'); } catch (_) {}
     const fmt = (i, which) => { const p = `table.Encode[${i}].${which}[0].Video.`; return enc[p + 'Compression'] ? { codec: enc[p + 'Compression'], width: Number(enc[p + 'Width']) || undefined, height: Number(enc[p + 'Height']) || undefined, fps: Number(enc[p + 'FPS']) || undefined } : {}; };
-    return titles.map((t, i) => {
-      const st = states.find((s) => Number(s.channel) === i);
-      return {
-        id: `${this.id}:${i + 1}`, deviceId: this.id, vendor: 'dahua', channel: i + 1, name: t.Name || `Channel ${i + 1}`, kind: 'ip',
-        online: st ? /connected/i.test(st.connectionState || '') : true,
-        streams: { main: { track: 0, ...fmt(i, 'MainFormat') }, sub: { track: 1, ...fmt(i, 'ExtraFormat') } },
-      };
-    });
+    return titles.map((t, i) => ({
+      id: `${this.id}:${i + 1}`, deviceId: this.id, vendor: 'dahua', channel: i + 1, name: t.Name || `Channel ${i + 1}`, kind: 'ip',
+      online: attached ? !!attached.get(i) : true,
+      streams: { main: { track: 0, ...fmt(i, 'MainFormat') }, sub: { track: 1, ...fmt(i, 'ExtraFormat') } },
+    }));
   }
 
   // ---------- URLs ----------
@@ -128,7 +127,8 @@ class DahuaDevice {
     const obj = await this.field('/cgi-bin/mediaFileFind.cgi?action=factory.create', 'result');
     const out = [];
     try {
-      await this.get(`/cgi-bin/mediaFileFind.cgi?action=findFile&object=${obj}&condition.Channel=${channel - 1}&condition.StartTime=${encodeURIComponent(dahuaTime(startMs))}&condition.EndTime=${encodeURIComponent(dahuaTime(endMs))}&condition.Types[0]=dav`, { timeout: 30000 });
+      // condition.Channel is 1-based here (verified on an EV-N42A16P16 NVR: Channel=0 answers "400 Bad Request", Channel=1 lists camera 1's files)
+      await this.get(`/cgi-bin/mediaFileFind.cgi?action=findFile&object=${obj}&condition.Channel=${channel}&condition.StartTime=${encodeURIComponent(dahuaTime(startMs))}&condition.EndTime=${encodeURIComponent(dahuaTime(endMs))}&condition.Types[0]=dav`, { timeout: 30000 });
       for (let guard = 0; guard < 200; guard++) {
         const kv = await this.get(`/cgi-bin/mediaFileFind.cgi?action=findNextFile&object=${obj}&count=100`, { timeout: 30000 });
         const items = rows(kv, 'items');
@@ -177,7 +177,13 @@ class DahuaDevice {
   // ---------- maintenance ----------
   async storage() {
     const kv = await this.get('/cgi-bin/storageDevice.cgi?action=getDeviceAllInfo');
-    return rows(kv, 'list.info').map((d, i) => ({ id: i + 1, name: d.Name, type: d.Type || 'local', status: /ok|normal|running/i.test(d.State || d['Detail[0].Status'] || 'ok') ? 'ok' : (d.State || 'unknown'), property: 'RW', capacityMB: Math.round(Number(d['Detail[0].TotalBytes']) / 1048576) || 0, freeMB: Math.round((Number(d['Detail[0].TotalBytes']) - Number(d['Detail[0].UsedBytes'])) / 1048576) || 0 }));
+    return rows(kv, 'list.info').map((d, i) => {
+      // one disk = several partitions (Detail[k]); sum them
+      const parts = rows(d, 'Detail');
+      const total = parts.reduce((n, p) => n + (Number(p.TotalBytes) || 0), 0), used = parts.reduce((n, p) => n + (Number(p.UsedBytes) || 0), 0);
+      const error = parts.some((p) => p.IsError === 'true') || /error|fail/i.test(d.State || '');
+      return { id: i + 1, name: d.Name || parts[0] && parts[0].Path || `Disk ${i + 1}`, type: d.Type || 'local', status: error ? 'error' : 'ok', property: 'RW', capacityMB: Math.round(total / 1048576), freeMB: Math.round((total - used) / 1048576) };
+    });
   }
   async time() { const t = await this.field('/cgi-bin/global.cgi?action=getCurrentTime', 'result'); return { mode: 'manual', localTime: (t || '').replace(' ', 'T') }; }
   setTimeNow() { return this.get(`/cgi-bin/global.cgi?action=setCurrentTime&time=${encodeURIComponent(dahuaTime(Date.now()))}`); }

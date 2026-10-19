@@ -19,7 +19,10 @@ function mockDahua() {
     if (u.includes('getDeviceClass')) return txt('class=NVR\r\n');
     if (u.includes('name=RTSP')) return txt('table.RTSP.Enable=true\r\ntable.RTSP.Port=10554\r\n');
     if (u.includes('name=ChannelTitle')) return txt('table.ChannelTitle[0].Name=Lobby\r\ntable.ChannelTitle[1].Name=Parking\r\ntable.ChannelTitle[2].Name=\r\n');
-    if (u.includes('getCameraState')) return txt('states[0].channel=0\r\nstates[0].connectionState=Connected\r\nstates[1].channel=1\r\nstates[1].connectionState=Unconnect\r\n');
+    if (u.includes('getCameraState')) { res.writeHead(501); return res.end('Error Not Implemented!'); }
+    if (u.includes('getCameraAll')) return txt('camera[0].Channel=0\r\ncamera[0].UniqueChannel=0\r\ncamera[0].Enable=true\r\ncamera[0].DeviceInfo.Enable=true\r\ncamera[0].DeviceInfo.Address=10.1.1.65\r\ncamera[1].Channel=0\r\ncamera[1].UniqueChannel=1\r\ncamera[1].Enable=false\r\ncamera[1].DeviceInfo.Enable=false\r\n');
+    if (u.includes('getDeviceAllInfo')) return txt('list.info[0].Detail[0].IsError=false\r\nlist.info[0].Detail[0].Path=/dev/sda0\r\nlist.info[0].Detail[0].TotalBytes=1048576.000000\r\nlist.info[0].Detail[0].UsedBytes=1048576.000000\r\nlist.info[0].Detail[1].IsError=false\r\nlist.info[0].Detail[1].Path=/dev/sda1\r\nlist.info[0].Detail[1].TotalBytes=2097152.000000\r\nlist.info[0].Detail[1].UsedBytes=0.000000\r\nlist.info[0].Name=/dev/sda\r\nlist.info[0].State=Success\r\n');
+    if (u.includes('action=findFile') && u.includes('condition.Channel=0')) { res.writeHead(400); return res.end('Error Bad Request!'); }
     if (u.includes('name=Encode')) return txt('table.Encode[0].MainFormat[0].Video.Compression=H.265\r\ntable.Encode[0].MainFormat[0].Video.Width=2560\r\ntable.Encode[0].MainFormat[0].Video.Height=1440\r\ntable.Encode[0].MainFormat[0].Video.FPS=15\r\ntable.Encode[0].ExtraFormat[0].Video.Compression=H.264\r\ntable.Encode[0].ExtraFormat[0].Video.Width=704\r\ntable.Encode[0].ExtraFormat[0].Video.Height=576\r\n');
     if (u.includes('factory.create')) return txt('result=12345\r\n');
     if (u.includes('action=findFile')) return txt('OK\r\n');
@@ -52,7 +55,7 @@ test('Dahua probe, channels, URLs, recordings, presets, events', async () => {
     assert.strictEqual(info.rtspPort, 10554);
     const cams = await d.cameras();
     assert.strictEqual(cams.length, 3);
-    assert.deepStrictEqual(cams.map((c) => [c.channel, c.name, c.online]), [[1, 'Lobby', true], [2, 'Parking', false], [3, 'Channel 3', true]]);
+    assert.deepStrictEqual(cams.map((c) => [c.channel, c.name, c.online]), [[1, 'Lobby', true], [2, 'Parking', false], [3, 'Channel 3', false]]);
     assert.strictEqual(cams[0].streams.main.codec, 'H.265');
     assert.strictEqual(cams[0].streams.sub.width, 704);
     assert.strictEqual(d.liveUrl(2, 'main'), 'rtsp://admin:pw@127.0.0.1:10554/cam/realmonitor?channel=2&subtype=0');
@@ -69,6 +72,7 @@ test('Dahua probe, channels, URLs, recordings, presets, events', async () => {
     assert.strictEqual(events[0].channel, 2);
     assert.strictEqual(events[0].description, 'Parking');
     assert.deepStrictEqual(await d.users(), [{ id: 'admin', name: 'admin', level: 'admin' }]);
+    assert.deepStrictEqual(await d.storage(), [{ id: 1, name: '/dev/sda', type: 'local', status: 'ok', property: 'RW', capacityMB: 3, freeMB: 2 }]);
   } finally { srv.close(); }
 });
 

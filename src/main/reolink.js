@@ -112,7 +112,9 @@ class ReolinkDevice {
 
   // ---------- recordings ----------
   async searchFiles(channel, startMs, endMs) {
-    const v = await this.cmd('Search', { Search: { channel: Number(channel), onlyStatus: 0, streamType: 'main', StartTime: tobj(startMs), EndTime: tobj(endMs) } }, { timeout: 30000 });
+    let v;
+    try { v = await this.cmd('Search', { Search: { channel: Number(channel), onlyStatus: 0, streamType: 'main', StartTime: tobj(startMs), EndTime: tobj(endMs) } }, { timeout: 30000 }); }
+    catch (e) { if (/\(-17\)/.test(e.message)) return []; throw e; } // "rcv failed" = nothing recorded (no SD card / HDD)
     return (((v.SearchResult || {}).File) || []).map((f) => ({ start: fromObj(f.StartTime), end: fromObj(f.EndTime), name: f.name, size: f.size, type: /md|ai|people|vehicle|dog/i.test(f.type || '') ? 'motion' : 'timing' })).filter((f) => Number.isFinite(f.start));
   }
   async searchRecordings(channel, startMs, endMs) {
