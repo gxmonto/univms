@@ -1,2 +1,5 @@
-- Start page: a Control Panel with one tile per module opens first, like iVMS-4200.
-- Cameras that were playing when the app closed are no longer reopened at the next start (a bad stream made the app crash in a loop); the layout is kept, and the tiles still come back when switching between modules in the same session. A startup view set in Main View → Views still loads. After a video crash the app reopens without the cameras.
+- New vendors: **Uniview / UNV** (LAPI: live, playback by time, snapshots, recording search), **Hanwha / Wisenet** (SUNAPI: live, snapshots, recording timeline, live events, storage; HTTPS auto-detected; playback from recorders not yet available), **Reolink** cameras and NVRs (live, snapshots, PTZ with presets and patrols, recording search and playback of recorded files, motion and AI events).
+- New vendor: **Dahua** NVR / XVR / IPC and Dahua OEMs (Amcrest, Lorex, IC Realtime) over the HTTP API: live view, playback by time, snapshots, PTZ with presets and tours, recording search, live events, storage, users, logs, time sync, reboot.
+- Device types relabelled: Hikvision covers LTS and ENS (Hikvision OEM); DW Spectrum covers Nx Witness and Wisenet WAVE (same server software); Dahua covers Amcrest and Lorex.
+
+- Fixed: opening a camera on an SDK (port 8000) device could freeze the whole window ("Not Responding") while the recorder was being contacted; the Hikvision SDK now runs in its own helper process.
