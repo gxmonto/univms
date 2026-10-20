@@ -7,12 +7,12 @@ const { HanwhaDevice } = require('./hanwha');
 const { ReolinkDevice } = require('./reolink');
 
 const TYPES = {
-  hikvision: { label: 'Hikvision / LTS / ENS / INVID Paramont NVR, DVR, IPC', defaultPort: 80, cls: HikvisionDevice },
+  hikvision: { label: 'Hikvision / LTS / ENS NVR, DVR, IPC', defaultPort: 80, cls: HikvisionDevice },
   dahua: { label: 'Dahua / Amcrest / Lorex NVR, XVR, IPC (HTTP API)', defaultPort: 80, cls: DahuaDevice },
   uniview: { label: 'Uniview / UNV NVR, IPC (LAPI)', defaultPort: 80, cls: UniviewDevice },
   hanwha: { label: 'Hanwha / Wisenet NVR, camera (SUNAPI)', defaultPort: 80, cls: HanwhaDevice },
   reolink: { label: 'Reolink camera / NVR', defaultPort: 80, cls: ReolinkDevice },
-  dwspectrum: { label: 'DW Spectrum / Nx Witness server', defaultPort: 7001, cls: DWSpectrumServer },
+  dwspectrum: { label: 'DW Spectrum / Nx Witness / Wisenet WAVE server', defaultPort: 7001, cls: DWSpectrumServer },
 };
 
 /** Driver instances cached per device id; invalidated when the device record changes. */
