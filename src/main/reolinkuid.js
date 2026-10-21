@@ -53,6 +53,7 @@ class ReolinkUidDevice {
         if (slots.length) {
           const need = Math.max(...slots.map((s) => s.channel)) + 1;
           if (need > this.channels) { this.slots = need; await this.relay(need); } // relay must serve the highest populated slot
+          this.offline = new Set(slots.filter((s) => s.state === 0).map((s) => s.channel)); // recorder says: camera disconnected
           return slots.map((s) => cam(s.channel, s.name, s.state === 1));
         }
       } catch (_) { /* fall back to the configured count */ }
@@ -64,6 +65,8 @@ class ReolinkUidDevice {
   }
 
   liveUrl(channel, stream = 'sub') {
+    // the recorder reports this slot's camera as disconnected: fail fast instead of opening a relay stream that never has video
+    if (this.offline && this.offline.has(Number(channel))) throw new Error('Camera offline (the recorder reports it disconnected)');
     const port = neolink.port(this.id);
     if (!port) throw new Error('Reolink relay not connected yet — refresh the device and try again');
     return `rtsp://127.0.0.1:${port}/ch${Number(channel)}/${stream === 'main' ? 'mainStream' : 'subStream'}`;
