@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reolink via UID: tiles no longer reload every few seconds. The relay held back each camera's video until a large buffer filled, and tiles reconnected while waiting; now video is passed on as it arrives, and a tile keeps its picture through gaps instead of reconnecting. Note that a recorder reached through Reolink's relay has limited bandwidth (about 0.5 Mbit/s at the tested site): with many cameras open at once each one updates less often; open fewer tiles, or forward the recorder's port and add it by IP, for smooth video.
+
 ## 1.4.5 - 2026-10-21
 
 - Fixed: cameras open in Main View disappeared when switching to another module and back. They now stay until the app is closed.

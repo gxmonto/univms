@@ -195,7 +195,7 @@ export class Player {
     // stall detection
     if (!this.stopped && this.statusText === 'playing' && this.bitrate === 0 && !this._userPaused) {
       this._stall = (this._stall || 0) + 1;
-      if (this._stall >= 12) {
+      if (this._stall >= (this.opts.stallSeconds || 12)) {
         this._stall = 0;
         if (this.opts.noRetry) { this.setStatus('error', 'no data'); this.stop(false); this.opts.onEnded && this.opts.onEnded(); }
         else { this.setStatus('reconnecting', 'no data'); this.restart(); }

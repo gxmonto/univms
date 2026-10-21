@@ -197,7 +197,9 @@ export function assign(i, cameraId, stream) {
   tile.streamBtn.textContent = tile.stream === 'main' ? 'MAIN' : 'SUB';
   tile.label.textContent = cam.name;
   tile.nameEl.classList.remove('hidden'); tile.hint.classList.add('hidden'); tile.hintInfo.classList.add('hidden'); tile.tools.classList.remove('hidden');
-  tile.player = new Player(tile.video, { cameraId, stream: tile.stream, kind: 'live', audio: tile.audio, onStatus: (s, d) => setTileStatus(tile, s, d) });
+  // Reolink via UID: the relay delivers video in bursts when several cameras share it; keep the picture instead of reconnecting
+  const stallSeconds = cam.deviceType === 'reolinkuid' ? 45 : 12;
+  tile.player = new Player(tile.video, { cameraId, stream: tile.stream, kind: 'live', audio: tile.audio, stallSeconds, onStatus: (s, d) => setTileStatus(tile, s, d) });
   tile.player.start();
   state.playing.add(cameraId);
   const alias = (cam && cam.id && (state.cameras.find((c) => c.id === cam.id) || {})) || {};

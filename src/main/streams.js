@@ -57,7 +57,8 @@ class StreamManager {
       // Remux only; the renderer requests a transcode restart if MSE cannot decode the codec (e.g. HEVC without HW support)
       args.push('-c:v', 'copy');
     }
-    args.push('-f', 'mp4', '-movflags', 'empty_moov+default_base_moof+frag_keyframe', '-frag_duration', opts.kind === 'playback' ? '500000' : '300000', '-avoid_negative_ts', 'make_zero', 'pipe:1');
+    // slow relays: a fragment per frame, so the picture moves as frames arrive instead of only at (rare) keyframes
+    args.push('-f', 'mp4', '-movflags', opts.fastProbe ? 'empty_moov+default_base_moof+frag_every_frame' : 'empty_moov+default_base_moof+frag_keyframe', '-frag_duration', opts.kind === 'playback' ? '500000' : '300000', '-avoid_negative_ts', 'make_zero', 'pipe:1');
 
     const proc = spawn(this.bin('ffmpeg'), args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     const entry = { proc, wc, info: { ...opts, url: sanitizeUrl(opts.url) }, errors: [], bytes: 0, started: Date.now() };
