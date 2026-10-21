@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Reolink via UID now works with many cameras at once: all channels share one login to the recorder, like the Reolink app, instead of one login per channel, which went over the recorder's limit and made tiles reconnect forever. With the Reolink desktop app installed, the camera list comes from the recorder itself, so only slots with a camera are shown, whatever their position, with their real online state.
+- Reolink via UID now works with many cameras at once: all channels share one login to the recorder, like the Reolink app, instead of one login per channel, which went over the recorder's limit and made tiles reconnect forever. **Channels:** with the Reolink desktop app installed on the same PC, UniVMS asks the recorder which slots have a camera and shows exactly those, wherever they are (for example cameras 1, 7 and 19 of a 24-channel NVR), with their real online state; the Channels number in the device dialog is then ignored. Without the Reolink app, UniVMS cannot ask the recorder, so it shows slots 1 up to the Channels number: enter the recorder's total number of slots (24 for a 24-channel NVR), not the number of cameras, so cameras on high slots are not left out. Empty slots then show "Stream not ready".
 
 ## 1.4.1 - 2026-10-21
 
