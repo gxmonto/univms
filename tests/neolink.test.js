@@ -24,7 +24,8 @@ test('neolink config: one camera entry per channel, UID vs address', () => {
 test('reolinkuid driver: channels and URLs, unsupported features reject', async () => {
   const d = new ReolinkUidDevice({ id: 'dev_1', host: '9527000KP8KGP7VF', username: 'admin', password: 'x', channels: 3 });
   const cams = await d.cameras();
-  assert.deepStrictEqual(cams.map((c) => [c.id, c.channel, c.online]), [['dev_1:0', 0, false], ['dev_1:1', 1, false], ['dev_1:2', 2, false]]);
+  // channels only log in while viewed, so "not tried yet" counts as online; only a failed attempt marks one offline
+  assert.deepStrictEqual(cams.map((c) => [c.id, c.channel, c.online]), [['dev_1:0', 0, true], ['dev_1:1', 1, true], ['dev_1:2', 2, true]]);
   assert.throws(() => d.liveUrl(0), /not connected/);
   await assert.rejects(d.playbackUrl(0, 0, 1), /Clip export is not available/); // playback goes through playbackPiped (Reolink SDK)
   assert.strictEqual(typeof d.playbackPiped, 'function');

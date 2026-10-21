@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reolink via UID: channels no longer log in to the recorder by themselves. Only channels shown in a tile hold a session, and the device's health check no longer logs in, so recorders with many channels stay under Reolink's session limit. Set the channel count to the recorder's real number of channels, and close the Reolink app while viewing the same recorder in UniVMS.
+
 ## 1.4.0 - 2026-10-21
 
 - Reolink via UID: **playback**. Recordings are searched and played back through the relay like live view, including the timeline for each day. Needs the Reolink desktop app installed on the same PC (UniVMS uses its playback library). Playback uses the sub stream, since the relay is too slow for 4K.

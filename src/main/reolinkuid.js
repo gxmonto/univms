@@ -15,7 +15,6 @@ const rsdk = require('./reolinksdk');
 
 const FIRST_CHUNK_MS = 30000, CHUNK_MS = 120000, LEAD_MS = 180000; // fast start, then 2-min chunks kept ≤3 min ahead of real time
 
-const CONNECT_WAIT_MS = 25000;
 
 class ReolinkUidDevice {
   constructor(cfg) {
@@ -26,25 +25,24 @@ class ReolinkUidDevice {
   }
   camKind() { return 'ip'; }
 
-  /** Starts the relay process and waits (bounded) for the first channel to log in. */
+  /**
+   * Starts the relay process. Channels log in only while a tile shows them (idle_disconnect), so there is no login to
+   * wait for here: Reolink recorders cap client sessions (~10) and a health check must not hold one.
+   */
   async probe() {
     await neolink.ensure({ id: this.id, host: this.host, username: this.cfg.username, password: this.cfg.password, channels: this.channels });
-    const t0 = Date.now();
-    for (;;) {
-      const st = neolink.state(this.id);
-      if (st && st.authFailure) { const e = new Error(`Login rejected through the Reolink relay: ${st.error}`); e.authFailure = true; throw e; }
-      if (st && Object.values(st.cams).includes('online')) return { name: this.cfg.name, model: 'Reolink (UID relay)', deviceType: this.channels > 1 ? 'NVR' : 'IPC', channels: this.channels, vendor: 'reolink', apiMode: 'P2P relay (live only)' };
-      if (!st || !st.running) throw new Error(st && st.error ? st.error : 'Relay process not running');
-      if (Date.now() - t0 > CONNECT_WAIT_MS) throw new Error(st.error || 'No answer through the Reolink relay yet (is the device online in the Reolink app?)');
-      await new Promise((r) => setTimeout(r, 1000));
-    }
+    await new Promise((r) => setTimeout(r, 500));
+    const st = neolink.state(this.id);
+    if (st && st.authFailure) { const e = new Error(`Login rejected through the Reolink relay: ${st.error}`); e.authFailure = true; throw e; }
+    if (!st || !st.running) throw new Error(st && st.error ? st.error : 'Relay process not running');
+    return { name: this.cfg.name, model: 'Reolink (UID relay)', deviceType: this.channels > 1 ? 'NVR' : 'IPC', channels: this.channels, vendor: 'reolink', apiMode: 'P2P relay' };
   }
   systemStatus() { return Promise.resolve({}); }
 
   async cameras() {
     const st = neolink.state(this.id) || { cams: {} };
     const out = [];
-    for (let ch = 0; ch < this.channels; ch++) out.push({ id: `${this.id}:${ch}`, deviceId: this.id, vendor: 'reolink', channel: ch, name: `Camera ${ch + 1}`, kind: 'ip', online: st.cams[`ch${ch}`] === 'online', streams: { main: { track: 0 }, sub: { track: 1 } } });
+    for (let ch = 0; ch < this.channels; ch++) out.push({ id: `${this.id}:${ch}`, deviceId: this.id, vendor: 'reolink', channel: ch, name: `Camera ${ch + 1}`, kind: 'ip', online: st.cams[`ch${ch}`] !== 'error', streams: { main: { track: 0 }, sub: { track: 1 } } });
     return out;
   }
 
