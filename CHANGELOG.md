@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reolink via UID: **playback**. Recordings are searched and played back through the relay like live view, including the timeline for each day. Needs the Reolink desktop app installed on the same PC (UniVMS uses its playback library). Playback uses the sub stream, since the relay is too slow for 4K.
+
 ## 1.3.1 - 2026-10-21
 
 - Fixed: Reolink via UID with many channels kept reconnecting. Each channel now holds a recorder session only while it is being watched (Reolink recorders allow only about ten at once), and a closed tile no longer keeps its stream running in the background. Set the channel count to the recorder's real number of channels.

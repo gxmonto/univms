@@ -320,6 +320,8 @@ function register(ctx) {
         : driver.sdk.startLive(channel, driver.camKind(channel), opts.stream || store.getSettings().defaultStream || 'sub', write),
       { decrypt: { key: streamKey } });
     }
+    // drivers that produce playback themselves (Reolink via UID: SDK downloads) feed the player as MPEG-TS
+    if (opts.kind === 'playback' && driver.playbackPiped) return streams.startPiped(e.sender, { ...opts, cameraName: cam.name }, (write, done) => driver.playbackPiped(channel, opts.startMs, opts.endMs, write, done), { format: 'mpegts', url: `${dev.type}://${dev.id}/${channel}` });
     const url = opts.kind === 'playback' ? await driver.playbackUrl(channel, opts.startMs, opts.endMs) : driver.liveUrl(channel, opts.stream || store.getSettings().defaultStream || 'sub');
     return streams.start(e.sender, { ...opts, url, cameraName: cam.name, encryption: hik ? { key: streamKey, probe: true, deviceId: dev.id } : undefined });
   });

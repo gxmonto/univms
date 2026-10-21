@@ -26,7 +26,8 @@ test('reolinkuid driver: channels and URLs, unsupported features reject', async 
   const cams = await d.cameras();
   assert.deepStrictEqual(cams.map((c) => [c.id, c.channel, c.online]), [['dev_1:0', 0, false], ['dev_1:1', 1, false], ['dev_1:2', 2, false]]);
   assert.throws(() => d.liveUrl(0), /not connected/);
-  await assert.rejects(d.playbackUrl(0, 0, 1), /Playback is not available/);
+  await assert.rejects(d.playbackUrl(0, 0, 1), /Clip export is not available/); // playback goes through playbackPiped (Reolink SDK)
+  assert.strictEqual(typeof d.playbackPiped, 'function');
   assert.strictEqual(await d.ptzCapable(0), false);
   assert.strictEqual(neolink.port('dev_1'), null);
   assert.strictEqual(neolink.state('dev_1'), null);
