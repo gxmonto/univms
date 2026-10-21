@@ -33,7 +33,9 @@ function toml(dev, port) {
   const target = isUid(dev.host) ? `uid = ${q(String(dev.host).trim().toUpperCase())}\ndiscovery = "cellular"` : `address = ${q(String(dev.host).trim())}`;
   const n = Math.max(1, Math.min(64, Number(dev.channels) || 1));
   const cams = [];
-  for (let ch = 0; ch < n; ch++) cams.push(`[[cameras]]\nname = "ch${ch}"\nusername = ${q(dev.username)}\npassword = ${q(dev.password)}\n${target}\nchannel_id = ${ch}\nstream = "both"\n`);
+  // idle_disconnect: a channel holds an NVR session only while it is viewed (+30 s). Reolink NVRs cap concurrent client
+  // sessions (~10 seen on an RLN16-410); one permanent session per channel got the rest kicked in a reconnect loop.
+  for (let ch = 0; ch < n; ch++) cams.push(`[[cameras]]\nname = "ch${ch}"\nusername = ${q(dev.username)}\npassword = ${q(dev.password)}\n${target}\nchannel_id = ${ch}\nstream = "both"\nidle_disconnect = true\n`);
   return `bind = "127.0.0.1"\nbind_port = ${port}\n\n${cams.join('\n')}`;
 }
 

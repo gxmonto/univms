@@ -11,6 +11,7 @@ test('neolink config: one camera entry per channel, UID vs address', () => {
   assert.strictEqual((t.match(/\[\[cameras\]\]/g) || []).length, 2);
   assert.match(t, /name = "ch0"[\s\S]*channel_id = 0/);
   assert.match(t, /name = "ch1"[\s\S]*channel_id = 1/);
+  assert.strictEqual((t.match(/idle_disconnect = true/g) || []).length, 2); // sessions only while viewed (NVR session cap)
   assert.match(t, /uid = "9527000KP8KGP7VF"\ndiscovery = "cellular"/);
   assert.match(t, /password = "p\\"w\\\\d"/); // JSON escaping is valid TOML
   const a = neolink.toml({ id: 'dev_2', host: '192.168.1.5:9000', username: 'admin', password: 'x', channels: 0 }, 9000);
