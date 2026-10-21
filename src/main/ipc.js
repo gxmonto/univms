@@ -327,8 +327,8 @@ function register(ctx) {
     }
     // drivers that produce playback themselves (Reolink via UID: SDK downloads) feed the player as MPEG-TS
     if (opts.kind === 'playback' && driver.playbackPiped) return streams.startPiped(e.sender, { ...opts, cameraName: cam.name }, (write, done) => driver.playbackPiped(channel, opts.startMs, opts.endMs, write, done), { format: 'mpegts', url: `${dev.type}://${dev.id}/${channel}` });
-    const url = opts.kind === 'playback' ? await driver.playbackUrl(channel, opts.startMs, opts.endMs) : driver.liveUrl(channel, opts.stream || store.getSettings().defaultStream || 'sub');
-    return streams.start(e.sender, { ...opts, url, cameraName: cam.name, encryption: hik ? { key: streamKey, probe: true, deviceId: dev.id } : undefined });
+    const url = opts.kind === 'playback' ? await driver.playbackUrl(channel, opts.startMs, opts.endMs) : await driver.liveUrl(channel, opts.stream || store.getSettings().defaultStream || 'sub');
+    return streams.start(e.sender, { ...opts, url, cameraName: cam.name, fastProbe: dev.type === 'reolinkuid', encryption: hik ? { key: streamKey, probe: true, deviceId: dev.id } : undefined });
   });
   h('devices:setStreamKey', (_e, { deviceId, key }) => {
     const dev = store.upsertDevice({ id: deviceId, streamKey: key ? String(key) : null });
@@ -341,10 +341,10 @@ function register(ctx) {
   h('stream:stats', () => streams.stats());
 
   // ---------- recording / snapshots ----------
-  h('record:start', (e, { cameraId, stream }) => {
+  h('record:start', async (e, { cameraId, stream }) => {
     const { driver, channel, cam, dev } = camInfo(cameraId);
     const file = path.join(dirs().recordDir, safeName(dev.name), `${safeName(cam.name)}_${ts()}.mp4`);
-    streams.startRecord(cameraId, driver.liveUrl(channel, stream || 'main'), file, (r) => broadcast('record:end', { cameraId, ...r }));
+    streams.startRecord(cameraId, await driver.liveUrl(channel, stream || 'main'), file, (r) => broadcast('record:end', { cameraId, ...r }));
     return { file };
   });
   h('record:stop', (_e, cameraId) => streams.stopRecord(cameraId));

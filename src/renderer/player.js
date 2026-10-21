@@ -245,7 +245,7 @@ export class Player {
   scheduleRetry() {
     clearTimeout(this._retryTimer);
     if (this.stopped || this.opts.noRetry) return;
-    const delay = Math.min(30000, 1500 * Math.pow(2, Math.min(this.retry, 4)));
+    const delay = Math.min(10000, 1500 * Math.pow(2, Math.min(this.retry, 4))); // capped at 10 s: slow relays (Reolink UID) would otherwise wait 24 s per tile
     this.retry++;
     this.setStatus('reconnecting', `retry in ${Math.round(delay / 1000)}s`);
     this._retryTimer = setTimeout(() => this.restart(), delay);

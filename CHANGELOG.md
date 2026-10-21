@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fixed: cameras open in Main View disappeared when switching to another module and back. They now stay until the app is closed.
+- Reolink via UID: cameras start much faster (about 15 to 20 seconds for ten cameras at once, instead of 30 seconds or more with repeated reconnects). Tiles wait until the relay has the camera ready instead of failing and retrying, and reconnect attempts are at most 10 seconds apart.
+
 ## 1.4.4 - 2026-10-21
 
 - Reolink via UID: cameras that the recorder reports as disconnected now say "Camera offline" instead of showing a grey "Stream not ready" test picture, and a camera that is still connecting no longer gets stuck in a slow "transcoded" mode because of that picture.

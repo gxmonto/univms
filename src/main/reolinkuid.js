@@ -26,13 +26,20 @@ class ReolinkUidDevice {
   camKind() { return 'ip'; }
 
   /**
-   * Starts the relay process. Channels log in only while a tile shows them (idle_disconnect), so there is no login to
-   * wait for here: Reolink recorders cap client sessions (~10) and a health check must not hold one.
+   * Relay channels: the recorder's populated slots when known (Reolink SDK), else 0..N-1 from the device dialog.
+   * Channels log in only while a tile shows them (idle_disconnect) and all share one login.
    */
-  relay(channels = this.channels) { return neolink.ensure({ id: this.id, host: this.host, username: this.cfg.username, password: this.cfg.password, channels }); }
+  relay() { return neolink.ensure({ id: this.id, host: this.host, username: this.cfg.username, password: this.cfg.password, channels: this.slotIds || this.channels }); }
+
+  /** Recorder slot list through Reolink's SDK (needs the Reolink desktop app): [{ channel, name, state }] without empty slots. */
+  async slots() {
+    if (!rsdk.available()) return null;
+    try { const s = (await rsdk.call('cameras', this.sdkDev())).filter((x) => x.state !== 2); return s.length ? s : null; } catch (_) { return null; }
+  }
 
   async probe() {
-    await this.relay(Math.max(this.channels, this.slots || 0));
+    if (!this.slotIds) { const s = await this.slots(); if (s) this.applySlots(s); } // before the relay starts: no restart later
+    await this.relay();
     await new Promise((r) => setTimeout(r, 500));
     const st = neolink.state(this.id);
     if (st && st.authFailure) { const e = new Error(`Login rejected through the Reolink relay: ${st.error}`); e.authFailure = true; throw e; }
@@ -41,22 +48,20 @@ class ReolinkUidDevice {
   }
   systemStatus() { return Promise.resolve({}); }
 
-  /**
-   * With the Reolink app installed, the recorder's own slot list (through Reolink's SDK): only populated slots, in any
-   * order, with their real online state. Without it: channels 0..N-1 from the device dialog.
-   */
+  applySlots(slots) {
+    this.slotIds = slots.map((x) => x.channel).sort((a, b) => a - b);
+    this.offline = new Set(slots.filter((x) => x.state === 0).map((x) => x.channel)); // recorder says: camera disconnected
+  }
+
+  /** Populated slots only (any order, real online state) with the Reolink app installed; else channels 0..N-1. */
   async cameras() {
     const cam = (ch, name, online) => ({ id: `${this.id}:${ch}`, deviceId: this.id, vendor: 'reolink', channel: ch, name: name || `Camera ${ch + 1}`, kind: 'ip', online, streams: { main: { track: 0 }, sub: { track: 1 } } });
-    if (rsdk.available()) {
-      try {
-        const slots = (await rsdk.call('cameras', this.sdkDev())).filter((s) => s.state !== 2); // 2 = empty slot
-        if (slots.length) {
-          const need = Math.max(...slots.map((s) => s.channel)) + 1;
-          if (need > this.channels) { this.slots = need; await this.relay(need); } // relay must serve the highest populated slot
-          this.offline = new Set(slots.filter((s) => s.state === 0).map((s) => s.channel)); // recorder says: camera disconnected
-          return slots.map((s) => cam(s.channel, s.name, s.state === 1));
-        }
-      } catch (_) { /* fall back to the configured count */ }
+    const slots = await this.slots();
+    if (slots) {
+      const before = JSON.stringify(this.slotIds);
+      this.applySlots(slots);
+      if (JSON.stringify(this.slotIds) !== before) await this.relay(); // a camera was added to / removed from a slot
+      return slots.map((x) => cam(x.channel, x.name, x.state === 1));
     }
     const st = neolink.state(this.id) || { cams: {} };
     const out = [];
@@ -64,12 +69,19 @@ class ReolinkUidDevice {
     return out;
   }
 
-  liveUrl(channel, stream = 'sub') {
+  /** Waits (≤45 s) until the relay serves this channel: opening a tile earlier only fails and pushes its retry back. */
+  async liveUrl(channel, stream = 'sub') {
+    const ch = Number(channel);
     // the recorder reports this slot's camera as disconnected: fail fast instead of opening a relay stream that never has video
-    if (this.offline && this.offline.has(Number(channel))) throw new Error('Camera offline (the recorder reports it disconnected)');
-    const port = neolink.port(this.id);
-    if (!port) throw new Error('Reolink relay not connected yet — refresh the device and try again');
-    return `rtsp://127.0.0.1:${port}/ch${Number(channel)}/${stream === 'main' ? 'mainStream' : 'subStream'}`;
+    if (this.offline && this.offline.has(ch)) throw new Error('Camera offline (the recorder reports it disconnected)');
+    if (!neolink.port(this.id)) await this.probe();
+    for (let i = 0; i < 90; i++) {
+      const st = neolink.state(this.id);
+      if (!st || !st.running) throw new Error((st && st.error) || 'Reolink relay not running');
+      if (st.ready.includes(`ch${ch}`)) return `rtsp://127.0.0.1:${st.port}/ch${ch}/${stream === 'main' ? 'mainStream' : 'subStream'}`;
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    throw new Error('The Reolink relay did not get this camera ready in 45 s');
   }
   playbackUrl() { return Promise.reject(new Error('Clip export is not available through the Reolink relay yet; use playback, or add the device by IP')); }
 

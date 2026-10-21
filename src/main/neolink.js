@@ -31,11 +31,12 @@ const isUid = (s) => /^[A-Z0-9]{16}$/i.test(String(s || '').trim());
 function toml(dev, port) {
   const q = (s) => JSON.stringify(String(s == null ? '' : s));
   const target = isUid(dev.host) ? `uid = ${q(String(dev.host).trim().toUpperCase())}\ndiscovery = "cellular"` : `address = ${q(String(dev.host).trim())}`;
-  const n = Math.max(1, Math.min(64, Number(dev.channels) || 1));
+  // channels: a count (0..n-1) or the explicit list of recorder slots that have a camera
+  const ids = Array.isArray(dev.channels) ? dev.channels.filter((c) => c >= 0 && c < 64) : [...Array(Math.max(1, Math.min(64, Number(dev.channels) || 1))).keys()];
   const cams = [];
   // idle_disconnect: a channel holds an NVR session only while it is viewed (+30 s). Reolink NVRs cap concurrent client
   // sessions (~10 seen on an RLN16-410); one permanent session per channel got the rest kicked in a reconnect loop.
-  for (let ch = 0; ch < n; ch++) cams.push(`[[cameras]]\nname = "ch${ch}"\nusername = ${q(dev.username)}\npassword = ${q(dev.password)}\n${target}\nchannel_id = ${ch}\nstream = "both"\nidle_disconnect = true\npush_notifications = false\nupdate_time = false\nuse_splash = false\n`); // no "Stream not Ready" test pattern: it is MJPEG, which sent tiles into transcode mode
+  for (const ch of ids) cams.push(`[[cameras]]\nname = "ch${ch}"\nusername = ${q(dev.username)}\npassword = ${q(dev.password)}\n${target}\nchannel_id = ${ch}\nstream = "both"\nidle_disconnect = true\npush_notifications = false\nupdate_time = false\nuse_splash = false\n`); // no "Stream not Ready" test pattern: it is MJPEG, which sent tiles into transcode mode
   return `bind = "127.0.0.1"\nbind_port = ${port}\n\n${cams.join('\n')}`;
 }
 
@@ -57,6 +58,7 @@ function onLine(entry, line) {
   entry.lines.push(l); if (entry.lines.length > 60) entry.lines.shift();
   const m = /\]\s+(ch\d+):\s+(.*)$/.exec(l); if (!m) return;
   const [, name, msg] = m;
+  if (/Available at/.test(msg)) { entry.ready.add(name); }
   if (/Connected and logged in/.test(msg)) { entry.cams.set(name, 'online'); entry.error = null; }
   else if (/Connection Lost|Discovery failed|Failed to connect/.test(msg)) { entry.cams.set(name, 'error'); entry.error = msg.replace(/\s+/g, ' ').slice(0, 200); if (AUTH_RE.test(msg)) { entry.authFailure = true; stop(entry.id); } }
 }
@@ -76,7 +78,7 @@ async function ensure(dev) {
   // own plugin registry file: never share the user's/system GStreamer registry (stale entries from other installs)
   const env = { ...process.env, GST_PLUGIN_PATH: path.join(d, 'plugins'), GST_PLUGIN_SYSTEM_PATH: '', GST_REGISTRY: path.join(cfgDir, 'gst-registry.bin'), RUST_LOG: process.env.NEOLINK_LOG || 'info' };
   const proc = spawn(path.join(d, 'neolink' + exe), ['rtsp', '--config', cfg], { env, cwd: d, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
-  const entry = { id: dev.id, proc, port, key, cfg, cams: new Map(), error: null, authFailure: false, lines: [] };
+  const entry = { id: dev.id, proc, port, key, cfg, cams: new Map(), ready: new Set(), error: null, authFailure: false, lines: [] };
   let buf = '';
   const feed = (c) => { buf += c; const parts = buf.split(/\r?\n/); buf = parts.pop(); for (const p of parts) onLine(entry, p); };
   proc.stdout.on('data', feed); proc.stderr.on('data', feed);
@@ -94,7 +96,7 @@ function stop(deviceId) {
   try { fs.unlinkSync(e.cfg); } catch (_) {}
 }
 function shutdown() { for (const id of [...procs.keys()]) stop(id); }
-function state(deviceId) { const e = procs.get(deviceId); return e ? { port: e.port, running: e.proc.exitCode === null, cams: Object.fromEntries(e.cams), error: e.error, authFailure: e.authFailure, lines: e.lines.slice(-10) } : null; }
+function state(deviceId) { const e = procs.get(deviceId); return e ? { port: e.port, running: e.proc.exitCode === null, cams: Object.fromEntries(e.cams), ready: [...e.ready], error: e.error, authFailure: e.authFailure, lines: e.lines.slice(-10) } : null; }
 const port = (deviceId) => { const e = procs.get(deviceId); return e && e.proc.exitCode === null ? e.port : null; };
 
 module.exports = { available, init, ensure, stop, shutdown, state, port, toml, isUid };

@@ -534,8 +534,8 @@ export function mount(container, p = {}) {
       // Cameras open at the last exit are NOT reopened after a restart (a bad stream at start crashed the app in a loop);
       // only the layout is. Within a session (view switch) the tiles come back from sessionStorage.
       layoutId = saved.layoutId || '4'; customLayout = saved.custom || saved.customLayout || null; currentViewId = saved.currentViewId || null;
+      const cells = JSON.parse(sessionStorage.getItem('live.cells') || '[]'); // read BEFORE renderGrid: it persists the (still empty) tiles
       renderGrid(true);
-      const cells = JSON.parse(sessionStorage.getItem('live.cells') || '[]');
       cells.forEach((c, i) => { if (c && c.cameraId && cameraById(c.cameraId)) assign(i, c.cameraId, c.stream); });
       restored = true;
     }

@@ -43,6 +43,8 @@ class StreamManager {
     const args = ['-hide_banner', '-loglevel', 'warning', '-nostdin'];
     if (s.lowLatency !== false && opts.kind !== 'playback') args.push('-fflags', 'nobuffer', '-flags', 'low_delay');
     else args.push('-fflags', '+genpts');
+    // slow relays (Reolink via UID, a few fps per camera): the default 5 s input probe delayed every tile by ~8 s
+    if (opts.fastProbe) args.push('-analyzeduration', '500000', '-probesize', '100000');
     args.push('-rtsp_transport', transport, '-timeout', '15000000', '-i', opts.url);
     // Note: -timeout is the RTSP socket timeout (µs) in ffmpeg >= 5
     args.push('-map', '0:v:0');

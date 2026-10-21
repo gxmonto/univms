@@ -18,6 +18,9 @@ test('neolink config: one camera entry per channel, UID vs address', () => {
   assert.match(a, /address = "192\.168\.1\.5:9000"/);
   assert.ok(!/discovery/.test(a));
   assert.strictEqual((a.match(/\[\[cameras\]\]/g) || []).length, 1);
+  const l = neolink.toml({ id: 'dev_3', host: '9527000KP8KGP7VF', username: 'admin', password: 'x', channels: [1, 7, 19] }, 9100); // only populated slots
+  assert.deepStrictEqual([...l.matchAll(/channel_id = (\d+)/g)].map((m) => +m[1]), [1, 7, 19]);
+  assert.match(l, /use_splash = false/);
   assert.ok(neolink.isUid('9527000KP8KGP7VF') && !neolink.isUid('192.168.1.5:9000'));
 });
 
@@ -26,7 +29,9 @@ test('reolinkuid driver: channels and URLs, unsupported features reject', async 
   const cams = await d.cameras();
   // channels only log in while viewed, so "not tried yet" counts as online; only a failed attempt marks one offline
   assert.deepStrictEqual(cams.map((c) => [c.id, c.channel, c.online]), [['dev_1:0', 0, true], ['dev_1:1', 1, true], ['dev_1:2', 2, true]]);
-  assert.throws(() => d.liveUrl(0), /not connected/);
+  d.applySlots([{ channel: 0, state: 0 }, { channel: 7, state: 1 }]); // recorder: slot 0 disconnected, slot 7 has a camera
+  await assert.rejects(d.liveUrl(0), /Camera offline/);
+  assert.deepStrictEqual(d.slotIds, [0, 7]);
   await assert.rejects(d.playbackUrl(0, 0, 1), /Clip export is not available/); // playback goes through playbackPiped (Reolink SDK)
   assert.strictEqual(typeof d.playbackPiped, 'function');
   assert.strictEqual(await d.ptzCapable(0), false);
