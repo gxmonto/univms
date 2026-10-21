@@ -168,6 +168,11 @@ function register(ctx) {
     return { info, cameras: cams };
   }
   ctx.refreshDevice = refreshDevice;
+  // Reolink via UID: the camera list (which recorder slots have a camera, and their online state) comes from the
+  // recorder only on a refresh, so refresh those devices shortly after start and every 10 minutes.
+  const refreshUidDevices = () => { for (const d of store.list('devices')) if (d.type === 'reolinkuid' && !hub.authBlocked(d.id)) refreshDevice(d.id).catch(() => {}); };
+  setTimeout(refreshUidDevices, 8000).unref();
+  setInterval(refreshUidDevices, 10 * 60 * 1000).unref();
   h('devices:refresh', (_e, id) => refreshDevice(id));
   h('devices:refreshAll', async () => {
     const out = {};

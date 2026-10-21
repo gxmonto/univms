@@ -41,8 +41,19 @@ function toml(dev, port) {
 
 const AUTH_RE = /password|credential|login (failed|rejected)|unauthori[sz]ed/i;
 
+// Neolink's own output goes to logs/neolink.log (rotated at 5 MB): the only record of relay/stream problems.
+function toFile(l) {
+  if (!userData) return;
+  try {
+    const f = path.join(userData, 'logs', 'neolink.log');
+    if (fs.existsSync(f) && fs.statSync(f).size > 5 * 1024 * 1024) fs.renameSync(f, f.replace(/\.log$/, '.1.log'));
+    fs.appendFileSync(f, l + '\n');
+  } catch (_) {}
+}
+
 function onLine(entry, line) {
   const l = line.trim(); if (!l) return;
+  toFile(l);
   entry.lines.push(l); if (entry.lines.length > 60) entry.lines.shift();
   const m = /\]\s+(ch\d+):\s+(.*)$/.exec(l); if (!m) return;
   const [, name, msg] = m;
