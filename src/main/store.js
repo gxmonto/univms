@@ -25,8 +25,8 @@ const DEFAULTS = {
     rtspTransport: 'tcp',
     lowLatency: true,
     autoReconnect: true,
-    alarmPopup: true,
-    alarmSound: true,
+    alarmPopup: false, // events still reach the Event Center; popups/sound are opt-in (user: "spam of alerts")
+    alarmSound: false,
     alarmTypes: ['VMD', 'linedetection', 'fielddetection', 'IO', 'videoloss', 'shelteralarm', 'cameraMotionEvent', 'cameraInputEvent', 'cameraDisconnectEvent'],
     requireLogin: false,
     autoLogin: false,
@@ -51,6 +51,11 @@ class Store {
     this._saveTimer = null;
     this.load();
     this.migrateSecrets();
+    // 2026-10-21: alarm popups and sound became opt-in; switch them off once on existing installs
+    if (!this.data.settings.alarmsOptIn) {
+      this.data.settings = { ...this.data.settings, alarmPopup: false, alarmSound: false, alarmsOptIn: true };
+      this.save();
+    }
   }
 
   /** Re-encrypt passwords stored in an older format while they still decrypt; lost ones stay as they are and are

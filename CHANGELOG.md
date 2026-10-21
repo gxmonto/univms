@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Alarm popups and the alarm sound are now off by default, also on existing installs. Motion and other events are still recorded in the Event Center; turn popups back on in System Config → Alarms if wanted.
+
 ## 1.4.3 - 2026-10-21
 
 - Reolink via UID: fixed tiles stuck on "reconnecting" when many cameras of the same recorder were open. One stalled tile could freeze every other camera of that recorder, closed tiles kept their video running in the background, and opening many tiles at once could jam the relay. The camera list (which slots have a camera, and which are online) now refreshes by itself shortly after start and every 10 minutes, so no manual refresh is needed. With many tiles open through the relay, each camera gets fewer frames per second: the site's upload through Reolink's relay is shared by all open cameras.
