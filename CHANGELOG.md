@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reolink via UID now works with many cameras at once: all channels share one login to the recorder, like the Reolink app, instead of one login per channel, which went over the recorder's limit and made tiles reconnect forever. With the Reolink desktop app installed, the camera list comes from the recorder itself, so only slots with a camera are shown, whatever their position, with their real online state.
+
 ## 1.4.1 - 2026-10-21
 
 - Reolink via UID: channels no longer log in to the recorder by themselves. Only channels shown in a tile hold a session, and the device's health check no longer logs in, so recorders with many channels stay under Reolink's session limit. Set the channel count to the recorder's real number of channels, and close the Reolink app while viewing the same recorder in UniVMS.

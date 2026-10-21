@@ -18,7 +18,7 @@ const DIR = process.env.REOLINK_APP_DIR || path.join(process.env.LOCALAPPDATA ||
 const DLL = path.join(DIR, 'libBCSDKWrapper.dll');
 const available = () => process.platform === 'win32' && fs.existsSync(DLL);
 
-const CMD = { LOGIN: 2087, SEARCH_RECFILES: 2113, DOWNLOAD_CUT: 2145, DOWNLOAD_CUT_PROGRESS: 2148 };
+const CMD = { CAMERA_STATE: 2119, LOGIN: 2087, SEARCH_RECFILES: 2113, DOWNLOAD_CUT: 2145, DOWNLOAD_CUT_PROGRESS: 2148 };
 const STREAM = { main: 0, sub: 1 };
 
 // ---------------------------------------------------------------- host (utility process)
@@ -50,6 +50,9 @@ function host() {
   const SearchParam = koffi.struct('RlSearchParam', { uid: str(32), logicChnBitmap: 'uint64_t', bNotSearchVideo: 'bool', streamType: 'int', fileType: 'int', seq: 'int', start: BcTime, end: BcTime, bsearchAITrack: 'bool', remoteChn: 'int', mode: 'int', needFeature: 'int', filterList: Filter, category: bytes(32), subTypeList: SubTypes });
   const RecFile = koffi.struct('RlRecFile', { iChannel: 'int', cIdentity: str(256), cFileName: str(32), AITrackFile: str(256), struStartTime: BcTime, struStopTime: BcTime, iFileSize: 'uint64_t', cCardNum: bytes(32), cLocked: 'uint8_t', cSupportNum: 'uint8_t', cRes: bytes(2), recordType: 'uint64_t', eStreamType: 'int', eFileType: 'int', iContainsAudio: 'int', iAnimalType: 'int', typeExtension: 'uint64_t', bEncrypted: 'bool' });
   const SearchResult = koffi.struct('RlSearchResult', { seq: 'int', fileNum: 'int', fileType: 'int', streamType: 'int', recFile: koffi.array(RecFile, 40) });
+  // E_BC_CMD_CAMERA_STATE (2119), sent by the recorder right after login: one item per channel slot (21256 bytes)
+  const CamItem = koffi.struct('RlCamItem', { iChannel: 'int', iIndex: 'int', cUid: str(128), devName: str(32), cFakeUid: str(128), iAbilityChanged: 'int', doorbellCoverCrop: 'float', iMeshState: 'int', iNetPortType: 'int', eState: 'int', eTrend: 'int', supportExtenStream: 'bool', eLoginState: 'int', eWifiState: 'int' });
+  const CamState = koffi.struct('RlCamState', { item: koffi.array(CamItem, 64), size: 'int', chnType: 'int' });
 
   const fn = (sig) => lib.func(sig);
   const sdk = {
@@ -80,6 +83,11 @@ function host() {
   const connectCb = koffi.register(() => {}, koffi.pointer(ConnectCb));
   const deviceCb = koffi.register((h, e) => {
     const s = byHandle.get(h); if (!s) return 0;
+    if (e.bcCmd === CMD.CAMERA_STATE && e.pRspData && e.dataLen === koffi.sizeof(CamState)) {
+      const st = koffi.decode(e.pRspData, CamState); const items = [];
+      for (let i = 0; i < Math.min(st.size, 64); i++) { const c = st.item[i]; if (c.iChannel >= 0) items.push({ channel: c.iChannel, name: c.devName, state: c.eState }); }
+      s.cameraState = items; s.cameraStateAt = Date.now();
+    }
     const list = s.waiters.get(e.bcCmd); if (!list) return 0;
     for (let i = 0; i < list.length; i++) if (list[i](e)) { list.splice(i, 1); i--; }
     return 0;
@@ -159,7 +167,15 @@ function host() {
   // idle sessions log out after 2 minutes (the recorder's session cap is small)
   setInterval(() => { for (const s of [...sessions.values()]) if (Date.now() - (s.lastUse || 0) > 120000 && ![...busy.keys()].some((k) => k.startsWith(s.key + '|'))) drop(s.key); }, 30000).unref();
 
-  const ops = { search, download, stopDownload: async (d, a) => stopDownload(d, a), logout: async (d) => drop(d.key), shutdown: () => { for (const k of [...sessions.keys()]) drop(k); try { sdk.Close(); } catch (_) {} } };
+  /** Channel slots of the recorder: { channel (0-based), name, state } with state 1 connected, 0 offline, 2 empty slot. */
+  async function cameras(dev) {
+    const s = await session(dev); s.lastUse = Date.now();
+    for (let i = 0; i < 50 && !s.cameraState; i++) await new Promise((r) => setTimeout(r, 200)); // arrives just after login
+    if (!s.cameraState) throw new Error('Reolink SDK: the recorder did not report its cameras');
+    return s.cameraState;
+  }
+
+  const ops = { cameras, search, download, stopDownload: async (d, a) => stopDownload(d, a), logout: async (d) => drop(d.key), shutdown: () => { for (const k of [...sessions.keys()]) drop(k); try { sdk.Close(); } catch (_) {} } };
   if (!process.parentPort) return ops; // in-process use (tests / scratch harness)
   process.parentPort.on('message', async ({ data }) => {
     const { id, op, dev, args } = data;

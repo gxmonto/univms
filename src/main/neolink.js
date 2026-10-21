@@ -60,7 +60,7 @@ async function ensure(dev) {
   if (!d) throw new Error('Reolink UID support (Neolink) is not bundled in this build');
   const port = await freePort();
   const cfgDir = path.join(userData, 'neolink'); fs.mkdirSync(cfgDir, { recursive: true });
-  const cfg = path.join(cfgDir, `${dev.id}.toml`);
+  const cfg = path.join(cfgDir, `${dev.id}-${port}.toml`); // per process: an exiting old process deletes its own file, not the new one
   fs.writeFileSync(cfg, toml(dev, port), { mode: 0o600 });
   // own plugin registry file: never share the user's/system GStreamer registry (stale entries from other installs)
   const env = { ...process.env, GST_PLUGIN_PATH: path.join(d, 'plugins'), GST_PLUGIN_SYSTEM_PATH: '', GST_REGISTRY: path.join(cfgDir, 'gst-registry.bin'), RUST_LOG: process.env.NEOLINK_LOG || 'info' };

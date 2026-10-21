@@ -29,8 +29,10 @@ class ReolinkUidDevice {
    * Starts the relay process. Channels log in only while a tile shows them (idle_disconnect), so there is no login to
    * wait for here: Reolink recorders cap client sessions (~10) and a health check must not hold one.
    */
+  relay(channels = this.channels) { return neolink.ensure({ id: this.id, host: this.host, username: this.cfg.username, password: this.cfg.password, channels }); }
+
   async probe() {
-    await neolink.ensure({ id: this.id, host: this.host, username: this.cfg.username, password: this.cfg.password, channels: this.channels });
+    await this.relay(Math.max(this.channels, this.slots || 0));
     await new Promise((r) => setTimeout(r, 500));
     const st = neolink.state(this.id);
     if (st && st.authFailure) { const e = new Error(`Login rejected through the Reolink relay: ${st.error}`); e.authFailure = true; throw e; }
@@ -39,10 +41,25 @@ class ReolinkUidDevice {
   }
   systemStatus() { return Promise.resolve({}); }
 
+  /**
+   * With the Reolink app installed, the recorder's own slot list (through Reolink's SDK): only populated slots, in any
+   * order, with their real online state. Without it: channels 0..N-1 from the device dialog.
+   */
   async cameras() {
+    const cam = (ch, name, online) => ({ id: `${this.id}:${ch}`, deviceId: this.id, vendor: 'reolink', channel: ch, name: name || `Camera ${ch + 1}`, kind: 'ip', online, streams: { main: { track: 0 }, sub: { track: 1 } } });
+    if (rsdk.available()) {
+      try {
+        const slots = (await rsdk.call('cameras', this.sdkDev())).filter((s) => s.state !== 2); // 2 = empty slot
+        if (slots.length) {
+          const need = Math.max(...slots.map((s) => s.channel)) + 1;
+          if (need > this.channels) { this.slots = need; await this.relay(need); } // relay must serve the highest populated slot
+          return slots.map((s) => cam(s.channel, s.name, s.state === 1));
+        }
+      } catch (_) { /* fall back to the configured count */ }
+    }
     const st = neolink.state(this.id) || { cams: {} };
     const out = [];
-    for (let ch = 0; ch < this.channels; ch++) out.push({ id: `${this.id}:${ch}`, deviceId: this.id, vendor: 'reolink', channel: ch, name: `Camera ${ch + 1}`, kind: 'ip', online: st.cams[`ch${ch}`] !== 'error', streams: { main: { track: 0 }, sub: { track: 1 } } });
+    for (let ch = 0; ch < this.channels; ch++) out.push(cam(ch, null, st.cams[`ch${ch}`] !== 'error'));
     return out;
   }
 
