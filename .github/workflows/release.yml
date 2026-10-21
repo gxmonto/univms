@@ -27,13 +27,15 @@ jobs:
           path: |
             vendor/hiksdk/.cache
             vendor/ffmpeg/.cache
-          key: sdk-archives-win-${{ hashFiles('scripts/fetch-hiksdk.js', 'scripts/fetch-ffmpeg.js') }}
+            vendor/neolink/.cache
+          key: sdk-archives-win-${{ hashFiles('scripts/fetch-hiksdk.js', 'scripts/fetch-ffmpeg.js', 'scripts/fetch-neolink.js') }}
       - name: Build Windows installer and portable exe
         run: npm run dist:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ASSETS_TOKEN: ${{ secrets.ASSETS_TOKEN }}
           UNIVMS_HIKSDK_REQUIRED: '1'
+          UNIVMS_NEOLINK_REQUIRED: '1'
       - uses: actions/upload-artifact@v4
         with:
           name: windows

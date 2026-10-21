@@ -16,10 +16,11 @@ export function editDevice(dev = null, prefill = {}) {
   f.transport = el('select', { onChange: () => { if (f.type.value === 'hikvision') { if (f.transport.value === 'sdk') { f._httpPort = f.port.value; f.port.value = 8000; } if (f.transport.value === 'isapi' && f.port.value === '8000') f.port.value = f._httpPort && f._httpPort !== '8000' ? f._httpPort : 80; } portLabel.firstChild.textContent = portLabelFor(f.type.value, f.transport.value); httpsLbl.classList.toggle('hidden', f.type.value === 'dwspectrum' || f.transport.value === 'sdk'); } },
     el('option', { value: 'isapi', selected: d.transport !== 'sdk' }, 'HTTP / ISAPI (web port, default)'),
     el('option', { value: 'sdk', selected: d.transport === 'sdk', disabled: !sdkAvail }, sdkAvail ? 'Hikvision SDK / server port 8000 (like iVMS)' : 'Hikvision SDK — not bundled in this build'));
-  f.type = el('select', { onChange: () => { const t = types.find((x) => x.id === f.type.value); if (t && (!f.port.value || types.some((x) => String(x.defaultPort) === f.port.value))) f.port.value = t.defaultPort; f.https.checked = f.type.value === 'dwspectrum'; httpsLbl.classList.toggle('hidden', f.type.value === 'dwspectrum'); portLabel.firstChild.textContent = portLabelFor(f.type.value, f.transport.value); transportLbl.classList.toggle('hidden', f.type.value !== 'hikvision'); streamKeyLbl.classList.toggle('hidden', f.type.value !== 'hikvision'); } }, ...types.map((t) => el('option', { value: t.id, selected: t.id === d.type }, t.label)));
+  f.type = el('select', { onChange: () => { const t = types.find((x) => x.id === f.type.value); if (t && (!f.port.value || types.some((x) => String(x.defaultPort) === f.port.value))) f.port.value = t.defaultPort; f.https.checked = f.type.value === 'dwspectrum'; applyType(); } }, ...types.map((t) => el('option', { value: t.id, selected: t.id === d.type, disabled: t.available === false }, t.label + (t.available === false ? ' — not bundled in this build' : ''))));
   inp('name', { placeholder: 'Front office NVR' });
   inp('host', { placeholder: '192.168.1.100 or hostname' });
   inp('port', { type: 'number', min: 1, max: 65535 });
+  inp('channels', { type: 'number', min: 1, max: 64, placeholder: '1 for a camera, NVR channel count' });
   inp('username');
   f.password = el('input', { type: 'password', placeholder: dev && dev.hasPassword ? '(unchanged)' : '' });
   f.streamKey = el('input', { type: 'password', maxlength: 16, placeholder: dev && dev.hasStreamKey ? '(unchanged)' : 'only if Stream Encryption is on' });
@@ -31,17 +32,23 @@ export function editDevice(dev = null, prefill = {}) {
   const result = el('div', { class: 'small', style: { minHeight: '20px' } });
   const portLabel = el('label', { class: 'field' }, portLabelFor(d.type, d.transport), f.port);
   const transportLbl = el('label', { class: `field full ${d.type !== 'hikvision' ? 'hidden' : ''}` }, 'Connection', f.transport, el('span', { class: 'dim small' }, 'ISAPI uses the device\'s web port. The SDK option talks to the server port 8000 exactly like iVMS-4200 (video, playback, two-way audio and alarms all go through port 8000; useful when only 8000 is forwarded).'));
-  const collect = () => ({ ...(dev ? { id: dev.id } : {}), type: f.type.value, transport: f.type.value === 'hikvision' ? f.transport.value : undefined, name: f.name.value.trim(), host: f.host.value.trim(), port: Number(f.port.value) || (f.type.value === 'hikvision' && f.transport.value === 'sdk' ? 8000 : types.find((t) => t.id === f.type.value).defaultPort), https: f.type.value === 'dwspectrum' ? true : f.https.checked, username: f.username.value, password: f.password.value, streamKey: f.type.value === 'hikvision' && f.streamKey.value ? f.streamKey.value : undefined, rtspPort: Number(f.rtspPort.value) || undefined, eventsDisabled: f.eventsDisabled.checked });
-  const validate = (c) => { if (!c.host) throw new Error('Host is required'); if (!c.name) c.name = c.host; if (!c.username) throw new Error('Username is required'); if (!dev && !c.password) throw new Error('Password is required'); };
+  const collect = () => ({ ...(dev ? { id: dev.id } : {}), type: f.type.value, transport: f.type.value === 'hikvision' ? f.transport.value : undefined, name: f.name.value.trim(), host: f.host.value.trim(), port: Number(f.port.value) || (f.type.value === 'hikvision' && f.transport.value === 'sdk' ? 8000 : types.find((t) => t.id === f.type.value).defaultPort), https: f.type.value === 'dwspectrum' ? true : f.https.checked, username: f.username.value, password: f.password.value, streamKey: f.type.value === 'hikvision' && f.streamKey.value ? f.streamKey.value : undefined, rtspPort: Number(f.rtspPort.value) || undefined, channels: f.type.value === 'reolinkuid' ? Math.max(1, Number(f.channels.value) || 1) : undefined, eventsDisabled: f.eventsDisabled.checked });
+  const validate = (c) => { if (!c.host) throw new Error(c.type === 'reolinkuid' ? 'UID is required' : 'Host is required'); if (!c.name) c.name = c.host; if (!c.username) throw new Error('Username is required'); if (!dev && !c.password) throw new Error('Password is required'); };
+  const hostLabel = el('label', { class: 'field' }, 'Host / IP', f.host);
+  const rtspLbl = el('label', { class: 'field' }, 'RTSP port (optional, auto-detected)', f.rtspPort);
+  const channelsLbl = el('label', { class: 'field hidden', dataset: { tip: 'Channels to expose through the relay: 1 for a camera, the channel count for an NVR. Live view only (no playback, snapshots, PTZ or events over the relay).' } }, 'Channels', f.channels);
+  // per-type field visibility (Reolink via UID: no port / HTTPS / RTSP port, UID instead of host, channel count)
+  const applyType = () => { const t = f.type.value, uid = t === 'reolinkuid'; httpsLbl.classList.toggle('hidden', t === 'dwspectrum' || f.transport.value === 'sdk' || uid); portLabel.firstChild.textContent = portLabelFor(t, f.transport.value); portLabel.classList.toggle('hidden', uid); rtspLbl.classList.toggle('hidden', uid); transportLbl.classList.toggle('hidden', t !== 'hikvision'); streamKeyLbl.classList.toggle('hidden', t !== 'hikvision'); channelsLbl.classList.toggle('hidden', !uid); hostLabel.firstChild.textContent = uid ? 'UID (16 characters) or host:9000' : 'Host / IP'; f.host.placeholder = uid ? 'UID from the Reolink app / device label' : '192.168.1.100 or hostname'; };
   const body = el('div', { class: 'form-grid' },
     el('label', { class: 'field full' }, 'Device type', f.type),
     transportLbl,
-    el('label', { class: 'field' }, 'Name', f.name), el('label', { class: 'field' }, 'Host / IP', f.host),
-    portLabel, el('label', { class: 'field' }, 'RTSP port (optional, auto-detected)', f.rtspPort),
+    el('label', { class: 'field' }, 'Name', f.name), hostLabel,
+    portLabel, rtspLbl, channelsLbl,
     el('label', { class: 'field' }, 'Username', f.username), el('label', { class: 'field' }, 'Password', f.password),
     streamKeyLbl,
     el('div', { class: 'row full' }, httpsLbl, el('label', { class: 'check' }, f.eventsDisabled, 'Do not subscribe to events from this device')),
     el('div', { class: 'full' }, result));
+  applyType();
   modal({ title: dev ? `Edit ${dev.name}` : 'Add device', size: 'wide', body, buttons: [
     { label: 'Test connection', left: true, onClick: async () => { try { const c = collect(); validate(c); result.textContent = 'Testing…'; result.className = 'small muted'; const r = await api('devices:test', c); result.className = 'small ok'; result.textContent = `OK: ${r.info.model || r.info.name || ''} ${r.info.firmware ? '• fw ' + r.info.firmware : ''} • ${r.cameraCount} camera(s)${r.info.rtspPort ? ' • RTSP ' + r.info.rtspPort : ''}`; } catch (e) { result.className = 'small err'; result.textContent = 'Failed: ' + e.message; } return false; } },
     { label: 'Cancel' },
@@ -188,7 +195,7 @@ function renderRows() {
     tbody.append(el('tr', { class: selectedId === d.id ? 'selected' : '', onClick: () => { selectedId = d.id; renderRows(); }, onDblclick: () => remoteConfig(d),
       onContextmenu: (e) => { e.preventDefault(); selectedId = d.id; renderRows(); contextMenu(e.clientX, e.clientY, deviceMenuItems(d, cams)); } },
       el('td', {}, el('span', { class: `status-dot ${st.online === true ? 'on' : st.online === false ? 'off' : 'unknown'}` })),
-      el('td', {}, d.name), el('td', {}, typeLabel(d.type) + (d.transport === 'sdk' ? ' • SDK' : '')), el('td', {}, `${d.https ? 'https://' : ''}${d.host}:${d.port}`),
+      el('td', {}, d.name), el('td', {}, typeLabel(d.type) + (d.transport === 'sdk' ? ' • SDK' : '')), el('td', {}, d.type === 'reolinkuid' ? d.host : `${d.https ? 'https://' : ''}${d.host}:${d.port}`),
       el('td', {}, (d.info && (d.info.model || d.info.name)) || '-'), el('td', {}, (d.info && d.info.serial) || '-'), el('td', {}, (d.info && d.info.firmware) || '-'),
       el('td', {}, cams.length ? `${online}/${cams.length}` : '-'), el('td', {}, d.lastRefresh ? fmtTime(d.lastRefresh) : '-'),
       el('td', { title: st.error || '' }, st.authFailed ? el('span', { class: 'err' }, st.secretLost ? 'Saved password unreadable — edit the device and enter it again' : 'Login rejected — edit the device to retry') : st.online === false ? el('span', { class: 'err' }, 'Offline' + (st.error ? ': ' + st.error.slice(0, 60) : '')) : st.online ? el('span', { class: 'ok' }, 'Online') : el('span', { class: 'dim' }, 'Checking…'))));

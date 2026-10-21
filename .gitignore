@@ -11,3 +11,4 @@ auto.crt
 auto.key
 vendor/hiksdk/
 dist-test*/
+vendor/neolink/

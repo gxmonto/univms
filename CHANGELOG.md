@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- New device type **Reolink via UID** (P2P relay): cameras and NVRs that are only reachable through the Reolink app (no forwarded HTTP/RTSP ports) can be added with their 16-character UID, like in the Reolink app. Live view of every channel (main and sub stream) through Reolink's relay servers; no playback, snapshots, PTZ or events over the relay. Windows builds bundle the relay helper (Neolink, AGPL-3.0, source: github.com/gxmonto/neolink).
+
 ## 1.2.0 - 2026-10-20
 
 - New vendors: **Uniview / UNV** (LAPI: live, playback by time, snapshots, recording search), **Hanwha / Wisenet** (SUNAPI: live, snapshots, recording timeline, live events, storage; HTTPS auto-detected; playback from recorders not yet available), **Reolink** cameras and NVRs (live, snapshots, PTZ with presets and patrols, recording search and playback of recorded files, motion and AI events).

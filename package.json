@@ -14,12 +14,13 @@
     "e2e": "node scripts/dev.js e2e",
     "test": "node --test --test-timeout=60000 --test-concurrency=1 \"tests/**/*.test.js\"",
     "fetch-ffmpeg": "node scripts/fetch-ffmpeg.js",
-    "dist:win": "node scripts/fetch-ffmpeg.js win32 x64 && node scripts/fetch-hiksdk.js win32 x64 && electron-builder --win --x64 --publish never",
+    "dist:win": "node scripts/fetch-ffmpeg.js win32 x64 && node scripts/fetch-hiksdk.js win32 x64 && node scripts/fetch-neolink.js win32 x64 && electron-builder --win --x64 --publish never",
     "dist:linux": "node scripts/fetch-ffmpeg.js linux x64 && node scripts/fetch-hiksdk.js linux x64 && electron-builder --linux dir --x64 --publish never && node scripts/package-linux.js",
     "dist": "npm run dist:win && npm run dist:linux",
     "release:major": "node scripts/bump.js major",
     "release:minor": "node scripts/bump.js minor",
-    "fetch-hiksdk": "node scripts/fetch-hiksdk.js"
+    "fetch-hiksdk": "node scripts/fetch-hiksdk.js",
+    "fetch-neolink": "node scripts/fetch-neolink.js"
   },
   "dependencies": {
     "electron-updater": "^6.8.9",

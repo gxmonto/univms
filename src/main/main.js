@@ -171,6 +171,7 @@ if (!gotLock && !SMOKE && !E2E) {
     pool = new DriverPool(store);
     streams = new StreamManager(() => store.getSettings()); streams.log = log;
     require('./sdkproxy').setLog(log);
+    require('./neolink').init({ log, userData });
     hub = new EventHub(store, pool, broadcast);
     Object.assign(ctx, { store, pool, streams, hub, broadcast, createWindow });
     ctx.locked = !!store.getSettings().requireLogin && store.list('users').length > 0 && !store.getSettings().autoLogin;
@@ -234,7 +235,7 @@ if (!gotLock && !SMOKE && !E2E) {
   // process during teardown (WER dumps in %LOCALAPPDATA%\CrashDumps); app.exit() does not emit will-quit.
   function shutdownAll() {
     // config first: nothing below may prevent it from reaching the disk
-    for (const step of [() => store && store.flush(), () => ctx.updater && ctx.updater.stop(), () => hub && hub.stop(), () => streams && streams.shutdown(), () => require('./sdkproxy').shutdown()]) {
+    for (const step of [() => store && store.flush(), () => ctx.updater && ctx.updater.stop(), () => hub && hub.stop(), () => streams && streams.shutdown(), () => require('./sdkproxy').shutdown(), () => require('./neolink').shutdown()]) {
       try { step(); } catch (_) {}
     }
   }

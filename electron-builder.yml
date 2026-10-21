@@ -34,6 +34,8 @@ win:
       to: ffmpeg
     - from: vendor/hiksdk/win32-x64
       to: hiksdk
+    - from: vendor/neolink/win32-x64
+      to: neolink
   target:
     - target: nsis
       arch: [x64]

@@ -8,6 +8,7 @@ const ffmpegBin = require('./ffmpeg');
 const discovery = require('./discovery');
 const { TwoWayAudioSession } = require('./twoway');
 const hiksdk = require('./sdkproxy');
+const neolink = require('./neolink');
 
 function ts(d = new Date()) {
   const p = (n) => String(n).padStart(2, '0');
@@ -49,7 +50,7 @@ function register(ctx) {
   // ---------- app ----------
   h('app:info', async () => ({
     version: app.getVersion(), name: app.getName(), platform: process.platform, userData: app.getPath('userData'),
-    ffmpeg: ffmpegBin.status(store.getSettings()), ...dirs(), locked: !!ctx.locked, hiksdk: await hiksdk.status(),
+    ffmpeg: ffmpegBin.status(store.getSettings()), ...dirs(), locked: !!ctx.locked, hiksdk: await hiksdk.status(), neolink: neolink.available(),
   }));
   h('app:changelog', (_e, version) => {
     // Section of CHANGELOG.md for a version (bundled with the app)
@@ -121,7 +122,7 @@ function register(ctx) {
   h('users:current', () => ctx.currentUser || null);
 
   // ---------- devices ----------
-  h('devices:types', () => Object.entries(TYPES).map(([id, t]) => ({ id, label: t.label, defaultPort: t.defaultPort })));
+  h('devices:types', () => Object.entries(TYPES).map(([id, t]) => ({ id, label: t.label, defaultPort: t.defaultPort, available: id !== 'reolinkuid' || neolink.available() })));
   h('devices:list', () => store.listDevices().map((d) => ({ ...d, status: hub.status.get(d.id) || null })));
   h('devices:test', async (_e, cfg) => {
     if (cfg.id && (!cfg.password || cfg.password === '')) {
@@ -146,6 +147,7 @@ function register(ctx) {
   h('devices:remove', (_e, id) => {
     hub.unsubscribe(id);
     pool.drop(id);
+    neolink.stop(id);
     hub.cameraCache.delete(id);
     hub.status.delete(id);
     store.removeDevice(id);
