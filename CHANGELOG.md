@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reolink via UID: full frame rate for many cameras at once. The relay connection was being throttled to a fraction of what Reolink's relay can carry; ten cameras now play at their normal rate, start in about 11 seconds and no longer freeze for long stretches. (This replaces the note in 1.4.6 about limited relay bandwidth: the limit was in UniVMS, not at the site.)
+
 ## 1.4.6 - 2026-10-21
 
 - Reolink via UID: tiles no longer reload every few seconds. The relay held back each camera's video until a large buffer filled, and tiles reconnected while waiting; now video is passed on as it arrives, and a tile keeps its picture through gaps instead of reconnecting. Note that a recorder reached through Reolink's relay has limited bandwidth (about 0.5 Mbit/s at the tested site): with many cameras open at once each one updates less often; open fewer tiles, or forward the recorder's port and add it by IP, for smooth video.

@@ -10,7 +10,7 @@ const path = require('path');
 const https = require('https');
 const { execFileSync } = require('child_process');
 
-const ASSET_TAG = 'neolink-v0.6.3-univms8';
+const ASSET_TAG = 'neolink-v0.6.3-univms9';
 const ASSET_REPO = process.env.UNIVMS_ASSETS_REPO || 'gxmonto/univms-assets';
 const platform = process.argv[2] || process.platform;
 const arch = process.argv[3] || 'x64';
