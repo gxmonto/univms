@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-- DW Spectrum: cameras open much faster and more reliably on large systems. Video now comes straight from the server that records each camera instead of being relayed through the one you added, the first picture appears in about 1–3 seconds instead of 3–8, and connections a server drops right away are reopened automatically instead of leaving the tile waiting.
+## 1.4.14 - 2026-10-22
 
+- DW Spectrum: cameras open much faster and more reliably on large systems. Video now comes straight from the server that records each camera instead of being relayed through the one you added, the first picture appears in about 1–3 seconds instead of 3–8, and connections a server drops right away are reopened automatically instead of leaving the tile waiting.
 ## 1.4.13 - 2026-10-22
 
 - DW Spectrum: import the server's layouts into Main View. Right-click the DW server → "Import layouts from DW…", pick the layouts (shared ones and your own) and they appear under Layouts with the same tile arrangement, including larger tiles. The copies can be edited like any other layout; importing a layout again replaces its copy.
