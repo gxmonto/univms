@@ -2,9 +2,10 @@
 
 ## Unreleased
 
+## 1.4.10 - 2026-10-22
+
 - DW Spectrum: cameras that have only one stream (common for generic RTSP cameras) now play. UniVMS asked for their non-existent second stream and the tiles kept reconnecting. Camera lists are refreshed shortly after start so this applies without re-adding the server.
 - Connections to devices and servers no longer fail on every second request ("socket hang up"). This made DW Spectrum camera lists, events and other calls fail at random.
-
 ## 1.4.9 - 2026-10-22
 
 - Reconnecting tiles show why the last attempt failed (for example "401 Unauthorized" or "no data"), not just the countdown.
