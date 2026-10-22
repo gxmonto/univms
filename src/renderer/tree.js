@@ -187,6 +187,7 @@ export function deviceMenuItems(dev, cams, opts = {}) {
     dev.type === 'hikvision' && { label: 'Hik-Connect / Guarding Vision & QR code…', icon: 'external', onClick: () => import('./hikconnect.js').then((m) => m.openHikConnect(dev)) },
     dev.type === 'hikvision' && { label: dev.hasStreamKey ? 'Stream encryption key… (set)' : 'Stream encryption key…', icon: 'edit', onClick: () => import('./streamkey.js').then((m) => m.setStreamKey(dev.id)) },
     dev.type === 'hikvision' && { label: 'Two-way audio with the recorder (speaker on the NVR)', icon: 'mic', onClick: () => import('./talkbar.js').then((m) => m.talkToDevice(dev)) },
+    dev.type === 'dwspectrum' && { label: 'Import layouts from DW…', icon: 'grid', onClick: () => import('./dwlayouts.js').then((m) => m.importDwLayouts(dev)) },
     { label: 'Re-import channels (refresh camera list)', icon: 'refresh', onClick: async () => { try { const r = await api('devices:refresh', dev.id); toast(`${dev.name}: ${r.cameras.length} channel(s) imported`, 'ok'); } catch (e) { toast(e.message, 'err'); } } },
     '-',
     { label: 'Delete device', icon: 'trash', danger: true, onClick: () => run('deleteDevice', dev) },

@@ -431,6 +431,8 @@ function register(ctx) {
   h('ptz:position3D', (_e, { cameraId, sx, sy, ex, ey }) => { const { driver, channel } = camInfo(cameraId); return driver.ptzPosition3D ? driver.ptzPosition3D(channel, sx, sy, ex, ey).then(() => true) : false; });
 
   // ---------- views / groups / maps ----------
+  // many layouts at once (DW import): one save notification instead of hundreds
+  h('views:import', (_e, items) => { for (const it of items) store.upsert('views', it); broadcast('views:changed'); return items.length; });
   for (const coll of ['views', 'groups']) {
     h(`${coll}:list`, () => store.list(coll));
     h(`${coll}:save`, (_e, item) => { const r = store.upsert(coll, item); broadcast('views:changed'); return r; });

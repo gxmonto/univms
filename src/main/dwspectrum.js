@@ -354,13 +354,22 @@ class DWSpectrumServer {
   }
 
   // ---------- server layouts (import) ----------
+  // shared layouts (no owner) and the logged-in user's own. Item geometry is a rectangle in cell units: right/bottom are
+  // exclusive, missing values are 0 (verified on 643 layouts: no overlaps that way).
   async layouts() {
+    const token = await this.login();
+    let me = '';
+    if (token) { try { me = stripBraces((await this.call(`/rest/v2/login/sessions/${token}`)).id); } catch (_) {} } // session id = user id
     let list;
     try { list = await this.call('/rest/v2/layouts'); } catch (_) { list = await this.call('/ec2/getLayouts'); }
-    return (Array.isArray(list) ? list : []).map((l) => ({
-      id: stripBraces(l.id), name: l.name,
-      items: (l.items || []).map((it) => ({ cameraUuid: stripBraces(it.resourceId), left: it.left, top: it.top, right: it.right, bottom: it.bottom })),
-    })).filter((l) => l.items.length);
+    const n = (v) => Math.round(Number(v) || 0);
+    return (Array.isArray(list) ? list : []).map((l) => {
+      const owner = stripBraces(l.parentId);
+      return {
+        id: stripBraces(l.id), name: l.name || 'Layout', shared: !owner || /^0{8}-/.test(owner), mine: !!me && owner === me,
+        items: (l.items || []).map((it) => ({ uuid: stripBraces(it.resourceId), x: n(it.left), y: n(it.top), w: n(it.right) - n(it.left), h: n(it.bottom) - n(it.top) })),
+      };
+    }).filter((l) => l.items.length && (l.shared || l.mine));
   }
 }
 

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- DW Spectrum: import the server's layouts into Main View. Right-click the DW server → "Import layouts from DW…", pick the layouts (shared ones and your own) and they appear under Layouts with the same tile arrangement, including larger tiles. The copies can be edited like any other layout; importing a layout again replaces its copy.
+
 ## 1.4.12 - 2026-10-22
 
 - DW Spectrum: cameras with a forced aspect ratio no longer fail with "Invalid data found when processing input". UniVMS now asks for the camera's own video instead of a copy re-encoded by the server, whose few re-encoding slots were full.

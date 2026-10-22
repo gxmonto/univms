@@ -113,7 +113,7 @@ async function remoteConfig(dev) {
     Storage: () => Array.isArray(info.storage) ? (info.storage.length ? el('table', { class: 'grid' }, el('thead', {}, el('tr', {}, ...['#', 'Name', 'Type', 'Status', 'Capacity', 'Free', 'Usage', 'Property'].map((h) => el('th', {}, h)))), el('tbody', {}, ...info.storage.map((h) => { const used = h.capacityMB ? 1 - h.freeMB / h.capacityMB : 0; return el('tr', {}, el('td', {}, String(h.id)), el('td', {}, h.name || '-'), el('td', {}, h.type || '-'), el('td', {}, el('span', { class: /ok|normal/i.test(h.status) ? 'ok' : 'warn' }, h.status || '-')), el('td', {}, fmtBytes(h.capacityMB * 1048576)), el('td', {}, fmtBytes(h.freeMB * 1048576)), el('td', {}, el('div', { class: `bar ${used > 0.95 ? 'warn' : ''}`, style: { width: '120px' } }, el('i', { style: { width: Math.round(used * 100) + '%' } }))), el('td', {}, h.property || '-')); }))) : el('div', { class: 'empty' }, 'No storage reported')) : el('div', { class: 'err' }, info.storage && info.storage.error),
     Users: () => info.users && info.users.length ? el('table', { class: 'grid' }, el('thead', {}, el('tr', {}, el('th', {}, 'ID'), el('th', {}, 'Username'), el('th', {}, 'Level'))), el('tbody', {}, ...info.users.map((u) => el('tr', {}, el('td', {}, String(u.id)), el('td', {}, u.name), el('td', {}, String(u.level || '')))))) : el('div', { class: 'empty' }, 'Not available'),
   };
-  if (dev.type === 'dwspectrum') panes['Server layouts'] = () => { const w = el('div', {}, el('div', { class: 'dim' }, 'Loading…')); api('dw:layouts', dev.id).then((ls) => { w.innerHTML = ''; if (!ls.length) return w.append(el('div', { class: 'empty' }, 'No layouts on server')); w.append(el('table', { class: 'grid' }, el('thead', {}, el('tr', {}, el('th', {}, 'Layout'), el('th', {}, 'Cameras'), el('th', {}, ''))), el('tbody', {}, ...ls.map((l) => el('tr', {}, el('td', {}, l.name), el('td', {}, String(l.items.length)), el('td', {}, btn('Import as view', { cls: 'sm' }, async () => { await importDwLayout(dev, l); }))))))); }).catch((e) => { w.textContent = e.message; }); return w; };
+  if (dev.type === 'dwspectrum') panes['Server layouts'] = () => el('div', { class: 'col' }, el('div', { class: 'dim' }, 'Copy the server\'s shared layouts and your own into Main View, with their tile sizes.'), el('div', {}, btn('Import layouts from DW…', { cls: 'primary' }, () => import('../dwlayouts.js').then((m) => m.importDwLayouts(dev)))));
   const show = (name) => { pane.innerHTML = ''; pane.append(panes[name]()); for (const b of tabs.children) b.classList.toggle('active', b.textContent === name); };
   for (const name of Object.keys(panes)) tabs.append(el('button', { onClick: () => show(name) }, name));
   body.innerHTML = ''; body.append(tabs, pane); show('Information');
@@ -122,19 +122,6 @@ async function remoteConfig(dev) {
   m.onClose = () => bus.removeEventListener('data', refresh);
 }
 
-async function importDwLayout(dev, l) {
-  const maxR = Math.max(...l.items.map((i) => i.right)), maxB = Math.max(...l.items.map((i) => i.bottom)), minL = Math.min(...l.items.map((i) => i.left)), minT = Math.min(...l.items.map((i) => i.top));
-  const cols = Math.max(1, Math.round(maxR - minL)), rows = Math.max(1, Math.round(maxB - minT));
-  const cells = new Array(cols * rows).fill(null);
-  for (const it of l.items) {
-    const c = Math.round(it.left - minL), r = Math.round(it.top - minT);
-    const cam = state.cameras.find((x) => x.deviceId === dev.id && x.uuid === it.cameraUuid);
-    if (cam && r * cols + c < cells.length) cells[r * cols + c] = { cameraId: cam.id, stream: 'sub' };
-  }
-  const std = Object.entries({ 1: [1, 1], 4: [2, 2], 9: [3, 3], 16: [4, 4], 25: [5, 5], 36: [6, 6] }).find(([, v]) => v[0] === cols && v[1] === rows);
-  await api('views:save', { name: `${l.name} (${dev.name})`, layoutId: std ? std[0] : null, custom: std ? null : { n: cols * rows, cols, rows }, cells, inTour: true });
-  toast(`Imported layout "${l.name}" as a view`, 'ok');
-}
 
 // ---------- groups ----------
 function renderGroups(root) {

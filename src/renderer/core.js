@@ -22,6 +22,9 @@ export async function loadAll() {
   emit('data');
 }
 
+// CSS grid-area name of tile i (preset and imported layouts)
+const AREA = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+export const areaName = (i) => AREA[i] || `t${i}`;
 export const cameraById = (id) => state.cameras.find((c) => c.id === id) || null;
 export const deviceById = (id) => state.devices.find((d) => d.id === id) || null;
 

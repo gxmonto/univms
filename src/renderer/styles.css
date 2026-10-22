@@ -202,6 +202,10 @@ table.grid tr.selected td { background: rgba(47,143,255,.14); }
 @keyframes blink { 50% { opacity: .2; } }
 .tile .tools { position: absolute; bottom: 0; left: 0; right: 0; display: flex; justify-content: center; gap: 2px; padding: 4px; background: linear-gradient(transparent, rgba(0,0,0,.75)); opacity: 0; transition: opacity .15s; }
 .tile:hover .tools, .tile.selected .tools { opacity: 1; }
+.dwl-list { max-height: 55vh; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+.dwl-row { display: flex; gap: 8px; align-items: center; padding: 5px 10px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.dwl-row:hover { background: rgba(255,255,255,.03); }
+.dwl-row .lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tile .tile-close { position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; border: 0; border-radius: 4px; background: rgba(0,0,0,.55); color: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .15s; z-index: 3; }
 .tile .tile-close svg { width: 13px; height: 13px; }
 .tile .tile-close:hover { background: var(--err); }

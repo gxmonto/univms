@@ -1,5 +1,5 @@
 // Main View: live video wall with layouts, drag & drop, PTZ, snapshots, local recording, tours
-import { api, state, bus, emit, el, svg, btn, toast, modal, confirm, promptText, cameraById, deviceById, contextMenu, setStatus } from '../core.js';
+import { api, state, bus, emit, el, svg, btn, toast, modal, confirm, promptText, cameraById, deviceById, contextMenu, setStatus, areaName } from '../core.js';
 import { createCameraTree, DT_CAMERA, DT_DEVICE, DT_GROUP, showCameraInfo } from '../tree.js';
 import { Player } from '../player.js';
 import { createPtzPanel } from '../ptz.js';
@@ -21,7 +21,6 @@ const LAYOUTS = {
   '36': { n: 36, cols: 6, rows: 6 },
   '64': { n: 64, cols: 8, rows: 8 },
 };
-const letters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
 let root, gridEl, tiles = [], layoutId = '4', customLayout = null, selectedIdx = -1, maximizedIdx = -1;
 let multiSel = new Set(); // selected tiles (Ctrl/Shift-click adds)
@@ -409,7 +408,7 @@ function renderGrid(rebuild = true) {
     gridEl.style.gridTemplateColumns = `repeat(${def.cols}, 1fr)`;
     gridEl.style.gridTemplateRows = `repeat(${def.rows}, 1fr)`;
     gridEl.style.gridTemplateAreas = def.areas ? def.areas.map((r) => `"${r}"`).join(' ') : '';
-    tiles.forEach((t, i) => { t.el.style.gridArea = def.areas ? letters[i] : ''; gridEl.append(t.el); });
+    tiles.forEach((t, i) => { t.el.style.gridArea = def.areas ? areaName(i) : ''; gridEl.append(t.el); });
   }
   document.querySelectorAll('.layout-btns button').forEach((b) => b.classList.toggle('active', !customLayout && b.dataset.layout === layoutId));
   emit('playing');
