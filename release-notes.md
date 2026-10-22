@@ -1,2 +1,6 @@
-- DW Spectrum: cameras that have only one stream (common for generic RTSP cameras) now play. UniVMS asked for their non-existent second stream and the tiles kept reconnecting. Camera lists are refreshed shortly after start so this applies without re-adding the server.
-- Connections to devices and servers no longer fail on every second request ("socket hang up"). This made DW Spectrum camera lists, events and other calls fail at random.
+- DW Spectrum: video now comes over the server's web connection with the login session instead of RTSP with the password. This fixes tiles stuck on "401 Unauthorized" with accounts that log in fine, and cameras open in about a second. Playback works the same way.
+- DW Spectrum: cameras set to a forced aspect ratio in DW (for example 16:9) are shown that way.
+- Main View: tiles keep a 16:9 shape like in DW Spectrum and iVMS-4200, instead of stretching to the window.
+- Select several cameras in the camera panel with Ctrl or Shift, then drag them onto the grid or double-click to open them all.
+- Select several tiles with Ctrl- or Shift-click; right-click to stop them, switch their stream or take snapshots, or press Delete to stop them.
+- The stop (X) button is now in the top right corner of each tile.
