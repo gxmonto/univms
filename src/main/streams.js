@@ -50,7 +50,8 @@ class StreamManager {
     const args = ['-hide_banner', '-loglevel', 'warning', '-nostdin'];
     if (s.lowLatency !== false && opts.kind !== 'playback') args.push('-fflags', 'nobuffer', '-flags', 'low_delay');
     else args.push('-fflags', '+genpts');
-    // slow relays (Reolink via UID, a few fps per camera): the default 5 s input probe delayed every tile by ~8 s
+    // short input probe for Reolink via UID (slow relay: the default 5 s probe delayed every tile by ~8 s) and DW Spectrum
+    // (Matroska carries the codec headers; first video 0.6–2.7 s instead of 2.9–7.7 s on a 25-camera layout)
     if (opts.fastProbe) args.push('-analyzeduration', '500000', '-probesize', '100000');
     args.push(...inputArgs(opts.url, transport));
     // Note: -timeout is the RTSP socket timeout (µs) in ffmpeg >= 5
@@ -88,6 +89,13 @@ class StreamManager {
     });
     proc.on('close', (code) => {
       if (this.streams.get(opts.id) === entry) this.streams.delete(opts.id);
+      // HTTP sources (DW media): one DW server reset ~1 in 4 new video connections within a second; reopen right away
+      // (up to 3 times) instead of making the tile wait for its retry
+      if (entry.bytes === 0 && !entry.stopped && /^https?:/i.test(sanitizeUrl(opts.url)) && (opts.reopens || 0) < 3 && Date.now() - entry.started < 6000 && /End of file|10054|reset|hang up/i.test(entry.errors.join(' '))) {
+        this.log && this.log('stream reopen', opts.cameraId, entry.errors.slice(-1).join(''));
+        this.start(wc, { ...opts, reopens: (opts.reopens || 0) + 1 });
+        return;
+      }
       if (code !== 0 || entry.bytes === 0) this.log && this.log('stream ended', opts.cameraId, opts.kind, `code=${code} bytes=${entry.bytes}`, entry.errors.slice(-3).join(' | '));
       const finish = (extra) => { if (!wc.isDestroyed()) wc.send('stream:end', opts.id, { code, error: entry.errors.slice(-3).join('\n'), bytes: entry.bytes, uptime: Date.now() - entry.started, ...extra }); };
       // A Hikvision stream that produced nothing decodable may be encrypted (Platform Access → Stream Encryption): check once

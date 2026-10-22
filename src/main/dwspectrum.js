@@ -23,6 +23,8 @@ class DWSpectrumServer {
     this.tokenExpires = 0;
     this.apiMode = null; // 'rest' | 'legacy'
     this.nativeRes = new Map(); // camera uuid -> ['WxH' primary, 'WxH' secondary] (from mediaStreams)
+    this.camServer = new Map(); // camera uuid -> id of the server that records it
+    this.serverBase = new Map(); // server id -> { at, base: Promise<base URL to fetch its cameras' video from> }
   }
 
   // ---------- auth ----------
@@ -105,7 +107,7 @@ class DWSpectrumServer {
   async servers() {
     try {
       const j = await this.call('/rest/v2/servers');
-      return (Array.isArray(j) ? j : []).map((s) => ({ id: stripBraces(s.id), name: s.name, url: s.url, status: s.status, version: s.version }));
+      return (Array.isArray(j) ? j : []).map((s) => ({ id: stripBraces(s.id), name: s.name, url: s.url, status: s.status, version: s.version, endpoints: s.endpoints || [] }));
     } catch (_) {
       const j = await this.call('/ec2/getMediaServersEx');
       return (Array.isArray(j) ? j : []).map((s) => ({ id: stripBraces(s.id), name: s.name, url: s.url, status: s.status, version: s.version }));
@@ -156,6 +158,7 @@ class DWSpectrumServer {
   // accounts that log in fine over REST) and opens in ~1 s instead of 2–5 s. Legacy servers: RTSP with the password.
   // mediaStreams lists each encoder's native resolution (entries without encoderIndex = primary, -1 = DW's transcoder)
   noteStreams(uuid, c) {
+    if (c.serverId) this.camServer.set(uuid, stripBraces(c.serverId));
     let ms = (c.parameters && c.parameters.mediaStreams) || (Array.isArray(c.addParams) && (c.addParams.find((p) => p.name === 'mediaStreams') || {}).value);
     try { if (typeof ms === 'string') ms = JSON.parse(ms); } catch (_) { ms = null; }
     if (ms && Array.isArray(ms.streams)) {
@@ -171,16 +174,37 @@ class DWSpectrumServer {
     const r = (this.nativeRes.get(uuid) || [])[n];
     return r ? `&resolution=${r}` : '';
   }
-  async media(pathname) {
+  // Video straight from the server that records the camera, when its public address answers: via the server we log in
+  // to, every stream is proxied (measured 2.0 s vs 0.5 s to the first bytes on a 7-server system). Checked once per server
+  // for 10 min; private/link-local addresses are skipped, and anything unreachable falls back to this.base.
+  async mediaBase(uuid) {
+    if (!this.camServer.has(uuid)) { try { this.noteStreams(uuid, await this.call(`/rest/v2/devices/${uuid}`)); } catch (_) {} }
+    const sid = this.camServer.get(uuid);
+    if (!sid) return this.base;
+    const hit = this.serverBase.get(sid);
+    if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.base;
+    const base = (async () => {
+      if (!this._servers || Date.now() - this._servers.at > 10 * 60 * 1000) this._servers = { at: Date.now(), list: this.servers().catch(() => []) }; // ~0.5 MB on big systems: once for all servers
+      const s = (await this._servers.list).find((x) => x.id === sid);
+      if (!s || !/online/i.test(s.status || '')) return this.base;
+      const scheme = this.https ? 'https' : 'http';
+      const hosts = [...new Set([s.url ? new URL(s.url).host : null, ...s.endpoints].filter((h) => h && !/^(\[|10\.|127\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(h)))];
+      const ok = (h) => request(`${scheme}://${h}/rest/v2/system/info`, { auth: this.authFor(), timeout: 3000 }).then((r) => { if (r.status !== 200) throw new Error(String(r.status)); return `${scheme}://${h}`; });
+      return hosts.length ? Promise.any(hosts.map(ok)).catch(() => this.base) : this.base;
+    })();
+    this.serverBase.set(sid, { at: Date.now(), base });
+    return base;
+  }
+  async media(pathname, uuid) {
     const token = await this.login();
-    return token ? { url: `${this.base}/media/${pathname}`, headers: `Authorization: Bearer ${token}\r\n` } : null;
+    return token ? { url: `${uuid ? await this.mediaBase(uuid) : this.base}/media/${pathname}`, headers: `Authorization: Bearer ${token}\r\n` } : null;
   }
   async liveUrl(uuid, stream = 'sub') {
     const n = stream === 'main' ? 0 : 1;
-    return (await this.media(`${uuid}.mkv?stream=${n}${await this.resParam(uuid, n)}`)) || `rtsp://${this.creds()}${this.host}:${this.rtspPort}/${uuid}?stream=${n}`;
+    return (await this.media(`${uuid}.mkv?stream=${n}${await this.resParam(uuid, n)}`, uuid)) || `rtsp://${this.creds()}${this.host}:${this.rtspPort}/${uuid}?stream=${n}`;
   }
   async playbackUrl(uuid, startMs, endMs) {
-    const m = await this.media(`${uuid}.mkv?pos=${Math.floor(startMs)}${endMs ? `&endPos=${Math.floor(endMs)}` : ''}${await this.resParam(uuid, 0)}`);
+    const m = await this.media(`${uuid}.mkv?pos=${Math.floor(startMs)}${endMs ? `&endPos=${Math.floor(endMs)}` : ''}${await this.resParam(uuid, 0)}`, uuid);
     if (m) return { ...m, realtime: true };
     let u = `rtsp://${this.creds()}${this.host}:${this.rtspPort}/${uuid}?stream=0&pos=${Math.floor(startMs)}`;
     if (endMs) u += `&endpos=${Math.floor(endMs)}`;

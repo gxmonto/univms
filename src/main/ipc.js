@@ -329,7 +329,7 @@ function register(ctx) {
     // drivers that produce playback themselves (Reolink via UID: SDK downloads) feed the player as MPEG-TS
     if (opts.kind === 'playback' && driver.playbackPiped) return streams.startPiped(e.sender, { ...opts, cameraName: cam.name }, (write, done) => driver.playbackPiped(channel, opts.startMs, opts.endMs, write, done), { format: 'mpegts', url: `${dev.type}://${dev.id}/${channel}` });
     const url = opts.kind === 'playback' ? await driver.playbackUrl(channel, opts.startMs, opts.endMs) : await driver.liveUrl(channel, opts.stream || store.getSettings().defaultStream || 'sub');
-    return streams.start(e.sender, { ...opts, url, cameraName: cam.name, aspect: cam.aspect, fastProbe: dev.type === 'reolinkuid', encryption: hik ? { key: streamKey, probe: true, deviceId: dev.id } : undefined });
+    return streams.start(e.sender, { ...opts, url, cameraName: cam.name, aspect: cam.aspect, fastProbe: dev.type === 'reolinkuid' || dev.type === 'dwspectrum', encryption: hik ? { key: streamKey, probe: true, deviceId: dev.id } : undefined });
   });
   h('devices:setStreamKey', (_e, { deviceId, key }) => {
     const dev = store.upsertDevice({ id: deviceId, streamKey: key ? String(key) : null });
