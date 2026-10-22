@@ -1,6 +1,1 @@
-- DW Spectrum: video now comes over the server's web connection with the login session instead of RTSP with the password. This fixes tiles stuck on "401 Unauthorized" with accounts that log in fine, and cameras open in about a second. Playback works the same way.
-- DW Spectrum: cameras set to a forced aspect ratio in DW (for example 16:9) are shown that way.
-- Main View: tiles keep a 16:9 shape like in DW Spectrum and iVMS-4200, instead of stretching to the window.
-- Select several cameras in the camera panel with Ctrl or Shift, then drag them onto the grid or double-click to open them all.
-- Select several tiles with Ctrl- or Shift-click; right-click to stop them, switch their stream or take snapshots, or press Delete to stop them.
-- The stop (X) button is now in the top right corner of each tile.
+- DW Spectrum: cameras with a forced aspect ratio no longer fail with "Invalid data found when processing input". UniVMS now asks for the camera's own video instead of a copy re-encoded by the server, whose few re-encoding slots were full.

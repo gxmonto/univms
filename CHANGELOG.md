@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-- DW Spectrum: cameras with a forced aspect ratio no longer fail with "Invalid data found when processing input". UniVMS now asks for the camera's own video instead of a copy re-encoded by the server, whose few re-encoding slots were full.
+## 1.4.12 - 2026-10-22
 
+- DW Spectrum: cameras with a forced aspect ratio no longer fail with "Invalid data found when processing input". UniVMS now asks for the camera's own video instead of a copy re-encoded by the server, whose few re-encoding slots were full.
 ## 1.4.11 - 2026-10-22
 
 - DW Spectrum: video now comes over the server's web connection with the login session instead of RTSP with the password. This fixes tiles stuck on "401 Unauthorized" with accounts that log in fine, and cameras open in about a second. Playback works the same way.
