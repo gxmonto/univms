@@ -22,6 +22,7 @@ class DWSpectrumServer {
     this.token = null;
     this.tokenExpires = 0;
     this.apiMode = null; // 'rest' | 'legacy'
+    this.nativeRes = new Map(); // camera uuid -> ['WxH' primary, 'WxH' secondary] (from mediaStreams)
   }
 
   // ---------- auth ----------
@@ -132,8 +133,7 @@ class DWSpectrumServer {
         const group = c.group && c.group.name ? c.group.name : (c.parameters && c.parameters.customGroupId) || (c.addParams && (c.addParams.find && (c.addParams.find((p) => p.name === 'customGroupId') || {}).value)) || null;
         const caps = Number((c.parameters && c.parameters.ptzCapabilities) || c.ptzCapabilities || 0);
         // the secondary stream exists only when mediaStreams lists encoderIndex 1; single-stream cameras (e.g. generic RTSP) answer 5XX for ?stream=1
-        let ms = (c.parameters && c.parameters.mediaStreams) || (Array.isArray(c.addParams) && (c.addParams.find((p) => p.name === 'mediaStreams') || {}).value);
-        try { if (typeof ms === 'string') ms = JSON.parse(ms); } catch (_) { ms = null; }
+        const ms = this.noteStreams(uuid, c);
         const hasSub = !(ms && Array.isArray(ms.streams)) || ms.streams.some((s) => s.encoderIndex === 1);
         // forced display aspect from the camera's DW settings (e.g. 640x480 streams shown as 16:9)
         const ar = Number((c.parameters && c.parameters.overrideAr) || (Array.isArray(c.addParams) && (c.addParams.find((p) => p.name === 'overrideAr') || {}).value)) || undefined;
@@ -154,16 +154,33 @@ class DWSpectrumServer {
   creds() { return `${encodeURIComponent(this.username)}:${encodeURIComponent(this.password)}@`; }
   // REST servers: HTTP media with the session token. Works for every account REST accepts (RTSP answered 401 for some
   // accounts that log in fine over REST) and opens in ~1 s instead of 2–5 s. Legacy servers: RTSP with the password.
+  // mediaStreams lists each encoder's native resolution (entries without encoderIndex = primary, -1 = DW's transcoder)
+  noteStreams(uuid, c) {
+    let ms = (c.parameters && c.parameters.mediaStreams) || (Array.isArray(c.addParams) && (c.addParams.find((p) => p.name === 'mediaStreams') || {}).value);
+    try { if (typeof ms === 'string') ms = JSON.parse(ms); } catch (_) { ms = null; }
+    if (ms && Array.isArray(ms.streams)) {
+      const res = [0, 1].map((n) => (ms.streams.find((s) => (s.encoderIndex === undefined ? 0 : s.encoderIndex) === n) || {}).resolution);
+      this.nativeRes.set(uuid, res.map((r) => (/^\d+x\d+$/.test(r || '') ? r : null)));
+    }
+    return ms;
+  }
+  // "&resolution=<native>": without it DW re-encodes cameras with a forced aspect ratio (or rotation) on the server, and its
+  // few transcoding slots then answer every request with 200 + {"errorString":"Too many opened connections"}
+  async resParam(uuid, n) {
+    if (!this.nativeRes.has(uuid)) { try { this.noteStreams(uuid, await this.call(`/rest/v2/devices/${uuid}`)); } catch (_) {} }
+    const r = (this.nativeRes.get(uuid) || [])[n];
+    return r ? `&resolution=${r}` : '';
+  }
   async media(pathname) {
     const token = await this.login();
     return token ? { url: `${this.base}/media/${pathname}`, headers: `Authorization: Bearer ${token}\r\n` } : null;
   }
   async liveUrl(uuid, stream = 'sub') {
     const n = stream === 'main' ? 0 : 1;
-    return (await this.media(`${uuid}.mkv?stream=${n}`)) || `rtsp://${this.creds()}${this.host}:${this.rtspPort}/${uuid}?stream=${n}`;
+    return (await this.media(`${uuid}.mkv?stream=${n}${await this.resParam(uuid, n)}`)) || `rtsp://${this.creds()}${this.host}:${this.rtspPort}/${uuid}?stream=${n}`;
   }
   async playbackUrl(uuid, startMs, endMs) {
-    const m = await this.media(`${uuid}.mkv?pos=${Math.floor(startMs)}${endMs ? `&endPos=${Math.floor(endMs)}` : ''}`);
+    const m = await this.media(`${uuid}.mkv?pos=${Math.floor(startMs)}${endMs ? `&endPos=${Math.floor(endMs)}` : ''}${await this.resParam(uuid, 0)}`);
     if (m) return { ...m, realtime: true };
     let u = `rtsp://${this.creds()}${this.host}:${this.rtspPort}/${uuid}?stream=0&pos=${Math.floor(startMs)}`;
     if (endMs) u += `&endpos=${Math.floor(endMs)}`;

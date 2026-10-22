@@ -54,9 +54,9 @@ test('DW Spectrum login, cameras, periods, events', async () => {
     assert.strictEqual(lobby.ip, '10.0.0.5');
     assert.strictEqual(cams.find((c) => c.name === 'Garage').online, false);
     // REST servers stream over HTTP with the session token, not RTSP with the password
-    assert.deepStrictEqual(await dw.liveUrl(lobby.uuid, 'main'), { url: `http://127.0.0.1:${port}/media/0016575c-f1bd-ab3a-570d-e1f0cfc261fd.mkv?stream=0`, headers: 'Authorization: Bearer vms-token-1\r\n' });
+    assert.deepStrictEqual(await dw.liveUrl(lobby.uuid, 'main'), { url: `http://127.0.0.1:${port}/media/0016575c-f1bd-ab3a-570d-e1f0cfc261fd.mkv?stream=0&resolution=640x480`, headers: 'Authorization: Bearer vms-token-1\r\n' });
     const pb = await dw.playbackUrl(lobby.uuid, 1700000000000);
-    assert.match(pb.url, /\.mkv\?pos=1700000000000$/);
+    assert.match(pb.url, /\.mkv\?pos=1700000000000&resolution=640x480$/);
     assert.strictEqual(pb.realtime, true);
     const segs = await dw.searchRecordings(lobby.uuid, 0, 20000);
     assert.strictEqual(segs.filter((s) => s.type === 'timing').length, 2);
