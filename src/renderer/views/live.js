@@ -330,6 +330,8 @@ function swap(a, b) {
 }
 
 function setStream(tile, stream) {
+  const cam = cameraById(tile.cameraId);
+  if (stream === 'sub' && cam && cam.streams && !cam.streams.sub) { toast('This camera has only one stream', 'info'); return; }
   tile.stream = stream;
   tile.streamBtn.textContent = stream === 'main' ? 'MAIN' : 'SUB';
   if (tile.player) tile.player.setStream(stream);

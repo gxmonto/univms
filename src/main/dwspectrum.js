@@ -131,6 +131,10 @@ class DWSpectrumServer {
         const online = /online|recording/i.test(status);
         const group = c.group && c.group.name ? c.group.name : (c.parameters && c.parameters.customGroupId) || (c.addParams && (c.addParams.find && (c.addParams.find((p) => p.name === 'customGroupId') || {}).value)) || null;
         const caps = Number((c.parameters && c.parameters.ptzCapabilities) || c.ptzCapabilities || 0);
+        // the secondary stream exists only when mediaStreams lists encoderIndex 1; single-stream cameras (e.g. generic RTSP) answer 5XX for ?stream=1
+        let ms = (c.parameters && c.parameters.mediaStreams) || (Array.isArray(c.addParams) && (c.addParams.find((p) => p.name === 'mediaStreams') || {}).value);
+        try { if (typeof ms === 'string') ms = JSON.parse(ms); } catch (_) { ms = null; }
+        const hasSub = !(ms && Array.isArray(ms.streams)) || ms.streams.some((s) => s.encoderIndex === 1);
         return {
           id: `${this.id}:${uuid}`, deviceId: this.id, vendor: 'dwspectrum', uuid,
           channel: uuid, name: c.name || c.model || uuid, kind: 'ip', online, status,
@@ -138,7 +142,7 @@ class DWSpectrumServer {
           model: c.model, vendorName: c.vendor, server: serverName(c.serverId), serverId: stripBraces(c.serverId),
           group, physicalId: c.physicalId, logicalId: c.logicalId,
           ptzHint: caps ? true : undefined,
-          streams: { main: { track: 0 }, sub: { track: 1 } },
+          streams: hasSub ? { main: { track: 0 }, sub: { track: 1 } } : { main: { track: 0 } },
         };
       })
       .sort((a, b) => (a.group || '').localeCompare(b.group || '') || a.name.localeCompare(b.name));

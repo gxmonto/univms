@@ -21,7 +21,7 @@ function mockNx() {
       if (req.url === '/rest/v2/system/info') return json({ name: 'HQ System', localId: '{abc}', version: '6.0.1.12345' });
       if (req.url === '/rest/v2/servers') return json([{ id: '{ee9cc344-2d09-4d3a-ede5-4170c9c77cb0}', name: 'Server A', url: 'https://127.0.0.1:7001', status: 'Online', version: '6.0.1' }]);
       if (req.url === '/rest/v2/devices') return json([
-        { id: '{0016575c-f1bd-ab3a-570d-e1f0cfc261fd}', name: 'Lobby', physicalId: 'abc', url: 'rtsp://10.0.0.5:554/stream', serverId: '{ee9cc344-2d09-4d3a-ede5-4170c9c77cb0}', status: 'Recording', vendor: 'GENERIC_RTSP', model: 'x', group: { id: 'g', name: 'Myrtle Ave' } },
+        { id: '{0016575c-f1bd-ab3a-570d-e1f0cfc261fd}', name: 'Lobby', physicalId: 'abc', url: 'rtsp://10.0.0.5:554/stream', serverId: '{ee9cc344-2d09-4d3a-ede5-4170c9c77cb0}', status: 'Recording', vendor: 'GENERIC_RTSP', model: 'x', group: { id: 'g', name: 'Myrtle Ave' }, parameters: { mediaStreams: JSON.stringify({ streams: [{ codec: 27, resolution: '640x480' }, { encoderIndex: -1, resolution: '*', transcodingRequired: true }] }) } },
         { id: '{1116575c-f1bd-ab3a-570d-e1f0cfc261fd}', name: 'Garage', url: 'http://10.0.0.6', serverId: '{ee9cc344-2d09-4d3a-ede5-4170c9c77cb0}', status: 'Offline' },
       ]);
       if (req.url.startsWith('/ec2/recordedTimePeriods') && req.url.includes('periodsType=0')) return json([{ startTimeMs: 1000, durationMs: 5000 }, { startTimeMs: 9000, durationMs: -1 }]);
@@ -47,6 +47,8 @@ test('DW Spectrum login, cameras, periods, events', async () => {
     assert.strictEqual(lobby.id, 'dev_dw:0016575c-f1bd-ab3a-570d-e1f0cfc261fd');
     assert.strictEqual(lobby.online, true);
     assert.strictEqual(lobby.group, 'Myrtle Ave');
+    assert.deepStrictEqual(Object.keys(lobby.streams), ['main'], 'single-stream camera has no sub stream');
+    assert.deepStrictEqual(Object.keys(cams.find((x) => x.name === 'Garage').streams), ['main', 'sub'], 'unknown stream list keeps both');
     assert.strictEqual(lobby.server, 'Server A');
     assert.strictEqual(lobby.ip, '10.0.0.5');
     assert.strictEqual(cams.find((c) => c.name === 'Garage').online, false);

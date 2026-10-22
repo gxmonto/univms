@@ -57,6 +57,8 @@ function rawRequest(urlStr, { method = 'GET', headers = {}, body, timeout = 1500
       headers: { 'User-Agent': 'UniVMS/1.0', Accept: '*/*', Connection: 'close', ...headers },
       rejectUnauthorized: false,
       timeout,
+      // own socket per request: Node 20's default agent keeps sockets alive and reused one the server had closed after our Connection: close (every second request failed with ECONNRESET)
+      agent: false,
     };
     if (body !== undefined && body !== null) {
       const buf = Buffer.isBuffer(body) ? body : Buffer.from(String(body), 'utf8');
