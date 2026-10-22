@@ -161,6 +161,8 @@ table.grid tr.selected td { background: rgba(47,143,255,.14); }
 .tree .node.device { font-weight: 600; color: var(--text); }
 .tree .node.device .caret { width: 14px; display: inline-flex; justify-content: center; color: var(--text-3); transition: transform .15s; }
 .tree .node.device.collapsed .caret { transform: rotate(-90deg); }
+.tree .tree-views { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line); }
+.tree .tree-views .views-head .lbl { text-transform: uppercase; font-size: 11px; letter-spacing: .04em; color: var(--text-2); }
 .tree .node .lbl { flex: 1; overflow: hidden; text-overflow: ellipsis; }
 .tree .node .cnt { color: var(--text-3); font-size: 11px; }
 .tree .children { margin-left: 14px; }

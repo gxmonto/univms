@@ -417,16 +417,20 @@ async function saveView(asNew = false) {
   if (name === null) return;
   const v = await api('views:save', { ...(existing || {}), name, ...currentViewData(), inTour: existing ? existing.inTour : true });
   currentViewId = v.id;
+  await refreshViews();
   toast(`View "${name}" saved`, 'ok');
   persistState();
 }
 function loadView(v, { keepTour = false } = {}) {
   if (!keepTour) stopTour(false);
-  stopAll();
+  // keep tiles that already show the same camera and stream: restarting them only costs time (slow relays especially)
+  const cells = v.cells || [];
+  tiles.forEach((t, i) => { const c = cells[i]; if (t.cameraId && !(c && c.cameraId === t.cameraId && (c.stream || t.stream) === t.stream)) clearTile(i); });
   if (v.custom) { customLayout = v.custom; } else { customLayout = null; layoutId = v.layoutId || '4'; }
   maximizedIdx = -1;
   renderGrid(true);
-  (v.cells || []).forEach((c, i) => { if (c && c.cameraId && cameraById(c.cameraId)) assign(i, c.cameraId, c.stream); });
+  cells.forEach((c, i) => { if (c && c.cameraId && cameraById(c.cameraId) && !(tiles[i] && tiles[i].cameraId === c.cameraId && tiles[i].player)) assign(i, c.cameraId, c.stream); });
+  if (tree) tree.refresh();
   currentViewId = v.id;
   setStatus(`View: ${v.name}`);
   persistState();
@@ -462,7 +466,7 @@ function manageViews() {
   render();
   const m = modal({ title: 'Manage views', body, size: 'wide', buttons: [{ label: 'Close', primary: true }] });
 }
-async function refreshViews() { state.views = await api('views:list'); }
+async function refreshViews() { state.views = await api('views:list'); if (tree) tree.refresh(); }
 
 // ---------- tour ----------
 function startTour() {
@@ -524,6 +528,7 @@ export function mount(container, p = {}) {
       assign(idx, cam.id); selectTile(idx);
     },
     onActivateDevice: (cams) => { fillFrom(0, cams.filter((c) => !c.hidden).map((c) => c.id)); },
+    views: { open: (v) => loadView(v), current: () => currentViewId, menu: () => [{ label: 'Save current as new layout…', icon: 'save', onClick: () => saveView(true) }, { label: 'Manage layouts…', icon: 'edit', onClick: manageViews }] },
   });
 
   // restore state

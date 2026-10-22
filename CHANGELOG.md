@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Main View: saved layouts are listed in the camera panel under the devices ("Layouts"). Click one to open it; right-click for save and manage.
+- Opening a layout keeps the tiles that already show the same camera instead of restarting them, so re-opening a layout is instant.
+- Reolink via UID: a camera closed and reopened quickly no longer risks being stopped by the old stream's late stop request.
+
 ## 1.4.7 - 2026-10-21
 
 - Reolink via UID: full frame rate for many cameras at once. The relay connection was being throttled to a fraction of what Reolink's relay can carry; ten cameras now play at their normal rate, start in about 11 seconds and no longer freeze for long stretches. (This replaces the note in 1.4.6 about limited relay bandwidth: the limit was in UniVMS, not at the site.)

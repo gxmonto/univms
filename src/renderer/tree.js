@@ -128,6 +128,31 @@ export function createCameraTree(container, opts = {}) {
       }
       if (!state.groups.length) body.append(el('div', { class: 'empty small' }, 'No groups. Create groups in Device Management → Groups.'));
     }
+    if (opts.views) body.append(viewsSection());
+  }
+
+  // saved layouts (Main View "Views"), always below the devices; click opens one
+  function viewsSection() {
+    const views = (state.views || []).filter((v) => !filter || (v.name || '').toLowerCase().includes(filter));
+    const key = 'views';
+    const isCollapsed = collapsed.has(key) && !filter;
+    const header = el('div', { class: `node device views-head ${isCollapsed ? 'collapsed' : ''}` },
+      el('span', { class: 'caret', html: '▾' }), svg('grid'), el('span', { class: 'lbl' }, 'Layouts'), el('span', { class: 'cnt' }, String(views.length)));
+    header.addEventListener('click', () => { collapsed.has(key) ? collapsed.delete(key) : collapsed.add(key); localStorage.setItem('tree.collapsed', JSON.stringify([...collapsed])); render(); });
+    header.addEventListener('contextmenu', (e) => { e.preventDefault(); contextMenu(e.clientX, e.clientY, opts.views.menu ? opts.views.menu() : []); });
+    const kids = el('div', { class: 'children' });
+    if (!isCollapsed) {
+      if (!views.length) kids.append(el('div', { class: 'empty small' }, 'No saved layouts yet. Use Save in the bar below the grid.'));
+      const current = opts.views.current ? opts.views.current() : null;
+      for (const v of views) {
+        const n = (v.cells || []).filter(Boolean).length;
+        const node = el('div', { class: `node camera layout ${v.id === current ? 'playing' : ''}`, title: `${v.name} • ${n} camera(s)` }, svg('live'), el('span', { class: 'lbl' }, v.name), el('span', { class: 'cnt' }, String(n)));
+        node.addEventListener('click', () => opts.views.open(v));
+        node.addEventListener('contextmenu', (e) => { e.preventDefault(); contextMenu(e.clientX, e.clientY, [{ label: 'Open layout', icon: 'play', onClick: () => opts.views.open(v) }, ...(opts.views.menu ? ['-', ...opts.views.menu(v)] : [])]); });
+        kids.append(node);
+      }
+    }
+    return el('div', { class: 'tree-views' }, header, kids);
   }
 
   bus.addEventListener('data', render);
