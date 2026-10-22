@@ -1,3 +1,2 @@
-- Main View: saved layouts are listed in the camera panel under the devices ("Layouts"). Click one to open it; right-click for save and manage.
-- Opening a layout keeps the tiles that already show the same camera instead of restarting them, so re-opening a layout is instant.
-- Reolink via UID: a camera closed and reopened quickly no longer risks being stopped by the old stream's late stop request.
+- Reconnecting tiles show why the last attempt failed (for example "401 Unauthorized" or "no data"), not just the countdown.
+- Stream errors in the log and on tiles no longer include the camera password.

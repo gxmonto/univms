@@ -2,9 +2,10 @@
 
 ## Unreleased
 
+## 1.4.9 - 2026-10-22
+
 - Reconnecting tiles show why the last attempt failed (for example "401 Unauthorized" or "no data"), not just the countdown.
 - Stream errors in the log and on tiles no longer include the camera password.
-
 ## 1.4.8 - 2026-10-22
 
 - Main View: saved layouts are listed in the camera panel under the devices ("Layouts"). Click one to open it; right-click for save and manage.
