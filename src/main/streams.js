@@ -11,7 +11,14 @@ const path = require('path');
 const ffmpegBin = require('./ffmpeg');
 const { PsDecryptor, TsDecryptor } = require('./hikstream');
 
-function sanitizeUrl(u) { return String(u).replace(/\/\/[^@/\s]*@/g, '//***@'); }
+function sanitizeUrl(u) { return String(u && u.url ? u.url : u).replace(/\/\/[^@/\s]*@/g, '//***@'); }
+// ffmpeg input for a URL, or for { url, headers, realtime } (DW Spectrum HTTP media with a bearer token; realtime = archive
+// sent faster than real time, so pace it). HTTPS servers here have self-signed certificates.
+function inputArgs(src, transport) {
+  const { url, headers, realtime } = typeof src === 'string' ? { url: src } : src;
+  if (!/^https?:/i.test(url)) return ['-rtsp_transport', transport, '-timeout', '15000000', '-i', url];
+  return ['-tls_verify', '0', ...(headers ? ['-headers', headers] : []), ...(realtime ? ['-re'] : []), '-timeout', '15000000', '-i', url];
+}
 const NETWORK_ERROR = /401|403|404|Unauthorized|refused|timed out|Connection|No route|resolve|Immediate exit|Server returned/i;
 
 class StreamManager {
@@ -45,7 +52,7 @@ class StreamManager {
     else args.push('-fflags', '+genpts');
     // slow relays (Reolink via UID, a few fps per camera): the default 5 s input probe delayed every tile by ~8 s
     if (opts.fastProbe) args.push('-analyzeduration', '500000', '-probesize', '100000');
-    args.push('-rtsp_transport', transport, '-timeout', '15000000', '-i', opts.url);
+    args.push(...inputArgs(opts.url, transport));
     // Note: -timeout is the RTSP socket timeout (µs) in ffmpeg >= 5
     args.push('-map', '0:v:0');
     if (opts.audio) args.push('-map', '0:a:0?', '-c:a', 'aac', '-ar', '16000', '-ac', '1', '-b:a', '48k');
@@ -57,6 +64,8 @@ class StreamManager {
       // Remux only; the renderer requests a transcode restart if MSE cannot decode the codec (e.g. HEVC without HW support)
       args.push('-c:v', 'copy');
     }
+    // display aspect forced in the VMS (DW "aspect ratio" override): written to the MP4, no re-encode
+    if (opts.aspect) args.push('-aspect', String(opts.aspect));
     // slow relays: a fragment per frame, so the picture moves as frames arrive instead of only at (rare) keyframes
     args.push('-f', 'mp4', '-movflags', opts.fastProbe ? 'empty_moov+default_base_moof+frag_every_frame' : 'empty_moov+default_base_moof+frag_keyframe', '-frag_duration', opts.kind === 'playback' ? '500000' : '300000', '-avoid_negative_ts', 'make_zero', 'pipe:1');
 
@@ -86,7 +95,7 @@ class StreamManager {
       if (opts.encryption && opts.encryption.probe && !entry.stopped && entry.bytes === 0 && !NETWORK_ERROR.test(entry.errors.join(' '))) this.probeEncryption(opts).then(finish, () => finish({}));
       else finish({});
     });
-    return { ok: true, args: args.map((a) => (a === opts.url ? sanitizeUrl(a) : a)) };
+    return { ok: true, args: args.map((a) => (/^Authorization:/i.test(a) ? 'Authorization: ***' : /^[a-z]+:\/\//i.test(a) ? sanitizeUrl(a) : a)) };
   }
 
   /** Is this RTSP stream encrypted? Pulls a few seconds through `-c copy -f mpegts` and inspects the parameter sets. Cached per device. */
@@ -211,7 +220,7 @@ class StreamManager {
     this.stopRecord(id);
     fs.mkdirSync(path.dirname(outFile), { recursive: true });
     const s = this.getSettings();
-    const args = ['-hide_banner', '-loglevel', 'error', '-rtsp_transport', s.rtspTransport || 'tcp', '-timeout', '15000000', '-i', url,
+    const args = ['-hide_banner', '-loglevel', 'error', ...inputArgs(url, s.rtspTransport || 'tcp'),
       '-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'copy', '-c:a', 'aac', '-f', 'mp4', '-movflags', '+faststart', '-y', outFile];
     const proc = spawn(this.bin('ffmpeg'), args, { stdio: ['pipe', 'ignore', 'pipe'], windowsHide: true });
     const entry = { proc, file: outFile, started: Date.now(), errors: [] };
@@ -237,7 +246,7 @@ class StreamManager {
   exportClip(id, url, outFile, durationSec, onProgress, onEnd) {
     fs.mkdirSync(path.dirname(outFile), { recursive: true });
     const s = this.getSettings();
-    const args = ['-hide_banner', '-loglevel', 'error', '-nostdin', '-rtsp_transport', s.rtspTransport || 'tcp', '-timeout', '15000000', '-i', url,
+    const args = ['-hide_banner', '-loglevel', 'error', '-nostdin', ...inputArgs(typeof url === 'string' ? url : { ...url, realtime: false }, s.rtspTransport || 'tcp'),
       '-t', String(Math.max(1, Math.round(durationSec))), '-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'copy', '-c:a', 'aac',
       '-f', 'mp4', '-movflags', '+faststart', '-progress', 'pipe:2', '-y', outFile];
     const proc = spawn(this.bin('ffmpeg'), args, { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });

@@ -13,6 +13,7 @@ export function createCameraTree(container, opts = {}) {
   let mode = localStorage.getItem('tree.mode') || 'device';
   let filter = '';
   let selected = new Set();
+  let order = [], anchor = null, pending = null; // camera ids in display order (for Shift ranges), last clicked camera
   const collapsed = new Set(JSON.parse(localStorage.getItem('tree.collapsed') || '[]'));
 
   const head = el('div', { class: 'toolbar', style: { padding: '6px 8px' } });
@@ -35,14 +36,24 @@ export function createCameraTree(container, opts = {}) {
     const st = statusOf(cam);
     const node = el('div', { class: `node camera ${st} ${selected.has(cam.id) ? 'selected' : ''} ${state.playing.has(cam.id) ? 'playing' : ''} ${cam.hidden ? 'hidden-cam' : ''}`, draggable: opts.draggable !== false, title: `${cam.name}${cam.ip ? ' • ' + cam.ip : ''}${cam.streams && cam.streams.main && cam.streams.main.codec ? ' • ' + cam.streams.main.codec : ''}`, dataset: { id: cam.id } },
       svg('camera'), el('span', { class: 'lbl' }, cam.name), cam.ptzHint ? el('span', { class: 'cnt', title: 'PTZ' }, 'PTZ') : null);
+    order.push(cam.id);
     node.addEventListener('click', (e) => {
-      if (opts.multi && (e.ctrlKey || e.metaKey)) { selected.has(cam.id) ? selected.delete(cam.id) : selected.add(cam.id); }
-      else { selected = new Set([cam.id]); }
+      const a = order.indexOf(anchor), b = order.indexOf(cam.id);
+      if (opts.multi && e.shiftKey && a >= 0) { selected = new Set(order.slice(Math.min(a, b), Math.max(a, b) + 1)); }
+      else if (opts.multi && (e.ctrlKey || e.metaKey)) { selected.has(cam.id) ? selected.delete(cam.id) : selected.add(cam.id); anchor = cam.id; }
+      // plain click inside a multi-selection: reset it only if this was not the first click of a double-click (which opens them all)
+      else if (selected.has(cam.id) && selected.size > 1) { clearTimeout(pending); pending = setTimeout(() => { selected = new Set([cam.id]); anchor = cam.id; render(); }, 300); return; }
+      else { selected = new Set([cam.id]); anchor = cam.id; }
       render();
       opts.onSelect && opts.onSelect(cam, [...selected]);
     });
-    node.addEventListener('dblclick', () => opts.onActivate && opts.onActivate(cam));
-    node.addEventListener('dragstart', (e) => { e.dataTransfer.setData(DT_CAMERA, cam.id); e.dataTransfer.setData('text/plain', cam.name); e.dataTransfer.effectAllowed = 'copy'; });
+    const many = () => (selected.has(cam.id) && selected.size > 1 ? order.filter((id) => selected.has(id)) : null);
+    node.addEventListener('dblclick', () => { clearTimeout(pending); const ids = many(); if (ids && opts.onActivateMany) opts.onActivateMany(ids); else if (opts.onActivate) opts.onActivate(cam); });
+    node.addEventListener('dragstart', (e) => {
+      const ids = many();
+      if (ids) e.dataTransfer.setData(DT_GROUP, ids.join(',')); else e.dataTransfer.setData(DT_CAMERA, cam.id);
+      e.dataTransfer.setData('text/plain', ids ? `${ids.length} cameras` : cam.name); e.dataTransfer.effectAllowed = 'copy';
+    });
     node.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       const items = [
@@ -89,6 +100,7 @@ export function createCameraTree(container, opts = {}) {
 
   function render() {
     body.innerHTML = '';
+    order = [];
     const cams = state.cameras.filter(visible);
     if (!state.devices.length) {
       body.append(el('div', { class: 'empty' }, svg('devices'), 'No devices yet.', el('br'), 'Add a Hikvision NVR or DW Spectrum server in Device Management.'));

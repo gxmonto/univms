@@ -24,6 +24,7 @@ const LAYOUTS = {
 const letters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
 let root, gridEl, tiles = [], layoutId = '4', customLayout = null, selectedIdx = -1, maximizedIdx = -1;
+let multiSel = new Set(); // selected tiles (Ctrl/Shift-click adds)
 let tree, ptz, sideRight, tourTimer = null, tourIdx = 0, currentViewId = null, pendingParams = null;
 let unsubs = [];
 
@@ -70,15 +71,25 @@ function createTile(i) {
     tb('snapshot', 'Snapshot', () => snapshot(tile)),
     tile.recBtn, tile.audioBtn, streamBtn, tile.zoomBtn, tile.ptzBtn, tile.talkBtn, tile.fishBtn,
     tb('fullscreen', 'Maximize / restore (double-click)', () => toggleMaximize(i)),
-    tb('close', 'Stop', () => clearTile(i)),
   );
+  tile.closeBtn = tb('close', 'Stop', () => clearTile(i), 'tile-close hidden');
+  t.append(tile.closeBtn);
 
-  t.addEventListener('click', () => selectTile(i));
+  t.addEventListener('click', (e) => selectTile(i, e.ctrlKey || e.metaKey || e.shiftKey));
   t.addEventListener('dblclick', (e) => { if (e.target.closest('.tools')) return; if (tile.cameraId) toggleMaximize(i); });
   t.addEventListener('contextmenu', (e) => {
     e.preventDefault();
-    selectTile(i);
+    if (!multiSel.has(i)) selectTile(i);
     const cam = tile.cameraId ? cameraById(tile.cameraId) : null;
+    const sel = [...multiSel].filter((k) => tiles[k] && tiles[k].cameraId);
+    if (sel.length > 1) return contextMenu(e.clientX, e.clientY, [
+      { label: `Stop ${sel.length} selected`, icon: 'close', onClick: () => sel.forEach(clearTile) },
+      { label: 'Selected to main stream', icon: 'swap', onClick: () => sel.forEach((k) => setStream(tiles[k], 'main')) },
+      { label: 'Selected to sub stream', icon: 'swap', onClick: () => sel.forEach((k) => setStream(tiles[k], 'sub')) },
+      { label: 'Snapshot selected', icon: 'snapshot', onClick: () => sel.forEach((k) => snapshot(tiles[k])) },
+      '-',
+      { label: 'Stop all', icon: 'stop', danger: true, onClick: () => stopAll() },
+    ]);
     contextMenu(e.clientX, e.clientY, [
       cam && { label: 'Snapshot', icon: 'snapshot', onClick: () => snapshot(tile) },
       cam && { label: tile.recording ? 'Stop recording' : 'Start local recording', icon: 'record', onClick: () => toggleRecord(tile) },
@@ -196,7 +207,7 @@ export function assign(i, cameraId, stream) {
   if (!cam.streams || !cam.streams.sub) tile.stream = 'main';
   tile.streamBtn.textContent = tile.stream === 'main' ? 'MAIN' : 'SUB';
   tile.label.textContent = cam.name;
-  tile.nameEl.classList.remove('hidden'); tile.hint.classList.add('hidden'); tile.hintInfo.classList.add('hidden'); tile.tools.classList.remove('hidden');
+  tile.nameEl.classList.remove('hidden'); tile.hint.classList.add('hidden'); tile.hintInfo.classList.add('hidden'); tile.tools.classList.remove('hidden'); tile.closeBtn.classList.remove('hidden');
   // Reolink via UID: the relay delivers video in bursts when several cameras share it; keep the picture instead of reconnecting
   const stallSeconds = cam.deviceType === 'reolinkuid' ? 45 : 12;
   tile.player = new Player(tile.video, { cameraId, stream: tile.stream, kind: 'live', audio: tile.audio, stallSeconds, onStatus: (s, d) => setTileStatus(tile, s, d) });
@@ -300,7 +311,7 @@ export function clearTile(i) {
   stopRecordingIfAny(tile);
   if (tile.cameraId) { state.playing.delete(tile.cameraId); }
   tile.cameraId = null; tile.zoom = null; applyZoom(tile); tile.zoomBtn.classList.remove('on');
-  tile.nameEl.classList.add('hidden'); tile.hint.classList.remove('hidden'); tile.hintInfo.classList.remove('hidden'); tile.tools.classList.add('hidden');
+  tile.nameEl.classList.add('hidden'); tile.hint.classList.remove('hidden'); tile.hintInfo.classList.remove('hidden'); tile.tools.classList.add('hidden'); tile.closeBtn.classList.add('hidden');
   setTileStatus(tile, 'idle', '');
   if (tile.ptz3d) { tile.ptz3d = false; tile.ptzBtn.classList.remove('on'); }
   emit('playing');
@@ -363,9 +374,12 @@ function stopRecordingIfAny(tile) {
   if (tile.recording) { api('record:stop', tile.cameraId).catch(() => {}); tile.recording = false; tile.recBtn.classList.remove('rec'); tile.recEl.classList.add('hidden'); }
 }
 
-function selectTile(i) {
+function selectTile(i, add = false) {
+  if (add && multiSel.has(i) && multiSel.size > 1) { multiSel.delete(i); if (selectedIdx === i) i = [...multiSel].pop(); }
+  else if (add) multiSel.add(i);
+  else multiSel = new Set([i]);
   selectedIdx = i;
-  tiles.forEach((t, k) => t.el.classList.toggle('selected', k === i));
+  tiles.forEach((t, k) => t.el.classList.toggle('selected', multiSel.has(k)));
   if (ptz) ptz.setCamera(tiles[i] && tiles[i].cameraId);
 }
 function toggleMaximize(i) {
@@ -384,7 +398,9 @@ function renderGrid(rebuild = true) {
     for (let i = def.n; i < prev.length; i++) { if (prev[i].player) prev[i].player.destroy(); if (prev[i].cameraId) state.playing.delete(prev[i].cameraId); stopRecordingIfAny(prev[i]); }
     if (maximizedIdx >= def.n) maximizedIdx = -1;
     if (selectedIdx >= def.n) { selectedIdx = -1; if (ptz) ptz.setCamera(null); }
+    multiSel = new Set([...multiSel].filter((k) => k < def.n));
   }
+  gridEl.style.setProperty('--ar', maximizedIdx >= 0 ? 16 / 9 : (def.cols * 16) / (def.rows * 9));
   gridEl.innerHTML = '';
   if (maximizedIdx >= 0) {
     gridEl.style.gridTemplateColumns = '1fr'; gridEl.style.gridTemplateRows = '1fr'; gridEl.style.gridTemplateAreas = '';
@@ -530,6 +546,8 @@ export function mount(container, p = {}) {
       assign(idx, cam.id); selectTile(idx);
     },
     onActivateDevice: (cams) => { fillFrom(0, cams.filter((c) => !c.hidden).map((c) => c.id)); },
+    multi: true,
+    onActivateMany: (ids) => { const free = tiles.findIndex((t) => !t.cameraId); fillFrom(free >= 0 ? free : 0, ids); },
     views: { open: (v) => loadView(v), current: () => currentViewId, menu: () => [{ label: 'Save current as new layout…', icon: 'save', onClick: () => saveView(true) }, { label: 'Manage layouts…', icon: 'edit', onClick: manageViews }] },
   });
 
@@ -563,7 +581,7 @@ export function mount(container, p = {}) {
   const onKey = (e) => {
     if (e.target.matches('input, textarea, select')) return;
     if (e.key === 'Escape' && maximizedIdx >= 0) toggleMaximize(maximizedIdx);
-    if (e.key === 'Delete' && selectedIdx >= 0) clearTile(selectedIdx);
+    if (e.key === 'Delete' && selectedIdx >= 0) [...multiSel].forEach(clearTile);
   };
   document.addEventListener('keydown', onKey);
   unsubs.push(() => document.removeEventListener('keydown', onKey));

@@ -21,7 +21,7 @@ function mockNx() {
       if (req.url === '/rest/v2/system/info') return json({ name: 'HQ System', localId: '{abc}', version: '6.0.1.12345' });
       if (req.url === '/rest/v2/servers') return json([{ id: '{ee9cc344-2d09-4d3a-ede5-4170c9c77cb0}', name: 'Server A', url: 'https://127.0.0.1:7001', status: 'Online', version: '6.0.1' }]);
       if (req.url === '/rest/v2/devices') return json([
-        { id: '{0016575c-f1bd-ab3a-570d-e1f0cfc261fd}', name: 'Lobby', physicalId: 'abc', url: 'rtsp://10.0.0.5:554/stream', serverId: '{ee9cc344-2d09-4d3a-ede5-4170c9c77cb0}', status: 'Recording', vendor: 'GENERIC_RTSP', model: 'x', group: { id: 'g', name: 'Myrtle Ave' }, parameters: { mediaStreams: JSON.stringify({ streams: [{ codec: 27, resolution: '640x480' }, { encoderIndex: -1, resolution: '*', transcodingRequired: true }] }) } },
+        { id: '{0016575c-f1bd-ab3a-570d-e1f0cfc261fd}', name: 'Lobby', physicalId: 'abc', url: 'rtsp://10.0.0.5:554/stream', serverId: '{ee9cc344-2d09-4d3a-ede5-4170c9c77cb0}', status: 'Recording', vendor: 'GENERIC_RTSP', model: 'x', group: { id: 'g', name: 'Myrtle Ave' }, parameters: { overrideAr: '1.77778', mediaStreams: JSON.stringify({ streams: [{ codec: 27, resolution: '640x480' }, { encoderIndex: -1, resolution: '*', transcodingRequired: true }] }) } },
         { id: '{1116575c-f1bd-ab3a-570d-e1f0cfc261fd}', name: 'Garage', url: 'http://10.0.0.6', serverId: '{ee9cc344-2d09-4d3a-ede5-4170c9c77cb0}', status: 'Offline' },
       ]);
       if (req.url.startsWith('/ec2/recordedTimePeriods') && req.url.includes('periodsType=0')) return json([{ startTimeMs: 1000, durationMs: 5000 }, { startTimeMs: 9000, durationMs: -1 }]);
@@ -48,12 +48,16 @@ test('DW Spectrum login, cameras, periods, events', async () => {
     assert.strictEqual(lobby.online, true);
     assert.strictEqual(lobby.group, 'Myrtle Ave');
     assert.deepStrictEqual(Object.keys(lobby.streams), ['main'], 'single-stream camera has no sub stream');
+    assert.strictEqual(lobby.aspect, 1.77778);
     assert.deepStrictEqual(Object.keys(cams.find((x) => x.name === 'Garage').streams), ['main', 'sub'], 'unknown stream list keeps both');
     assert.strictEqual(lobby.server, 'Server A');
     assert.strictEqual(lobby.ip, '10.0.0.5');
     assert.strictEqual(cams.find((c) => c.name === 'Garage').online, false);
-    assert.strictEqual(dw.liveUrl(lobby.uuid, 'main'), `rtsp://admin:pw@127.0.0.1:${port}/0016575c-f1bd-ab3a-570d-e1f0cfc261fd?stream=0`);
-    assert.match(dw.playbackUrl(lobby.uuid, 1700000000000), /\?stream=0&pos=1700000000000$/);
+    // REST servers stream over HTTP with the session token, not RTSP with the password
+    assert.deepStrictEqual(await dw.liveUrl(lobby.uuid, 'main'), { url: `http://127.0.0.1:${port}/media/0016575c-f1bd-ab3a-570d-e1f0cfc261fd.mkv?stream=0`, headers: 'Authorization: Bearer vms-token-1\r\n' });
+    const pb = await dw.playbackUrl(lobby.uuid, 1700000000000);
+    assert.match(pb.url, /\.mkv\?pos=1700000000000$/);
+    assert.strictEqual(pb.realtime, true);
     const segs = await dw.searchRecordings(lobby.uuid, 0, 20000);
     assert.strictEqual(segs.filter((s) => s.type === 'timing').length, 2);
     assert.strictEqual(segs.find((s) => s.type === 'motion').start, 2000);

@@ -135,6 +135,8 @@ class DWSpectrumServer {
         let ms = (c.parameters && c.parameters.mediaStreams) || (Array.isArray(c.addParams) && (c.addParams.find((p) => p.name === 'mediaStreams') || {}).value);
         try { if (typeof ms === 'string') ms = JSON.parse(ms); } catch (_) { ms = null; }
         const hasSub = !(ms && Array.isArray(ms.streams)) || ms.streams.some((s) => s.encoderIndex === 1);
+        // forced display aspect from the camera's DW settings (e.g. 640x480 streams shown as 16:9)
+        const ar = Number((c.parameters && c.parameters.overrideAr) || (Array.isArray(c.addParams) && (c.addParams.find((p) => p.name === 'overrideAr') || {}).value)) || undefined;
         return {
           id: `${this.id}:${uuid}`, deviceId: this.id, vendor: 'dwspectrum', uuid,
           channel: uuid, name: c.name || c.model || uuid, kind: 'ip', online, status,
@@ -142,7 +144,7 @@ class DWSpectrumServer {
           model: c.model, vendorName: c.vendor, server: serverName(c.serverId), serverId: stripBraces(c.serverId),
           group, physicalId: c.physicalId, logicalId: c.logicalId,
           ptzHint: caps ? true : undefined,
-          streams: hasSub ? { main: { track: 0 }, sub: { track: 1 } } : { main: { track: 0 } },
+          streams: hasSub ? { main: { track: 0 }, sub: { track: 1 } } : { main: { track: 0 } }, aspect: ar,
         };
       })
       .sort((a, b) => (a.group || '').localeCompare(b.group || '') || a.name.localeCompare(b.name));
@@ -150,10 +152,19 @@ class DWSpectrumServer {
 
   // ---------- URLs ----------
   creds() { return `${encodeURIComponent(this.username)}:${encodeURIComponent(this.password)}@`; }
-  liveUrl(uuid, stream = 'sub') {
-    return `rtsp://${this.creds()}${this.host}:${this.rtspPort}/${uuid}?stream=${stream === 'main' ? 0 : 1}`;
+  // REST servers: HTTP media with the session token. Works for every account REST accepts (RTSP answered 401 for some
+  // accounts that log in fine over REST) and opens in ~1 s instead of 2–5 s. Legacy servers: RTSP with the password.
+  async media(pathname) {
+    const token = await this.login();
+    return token ? { url: `${this.base}/media/${pathname}`, headers: `Authorization: Bearer ${token}\r\n` } : null;
   }
-  playbackUrl(uuid, startMs, endMs) {
+  async liveUrl(uuid, stream = 'sub') {
+    const n = stream === 'main' ? 0 : 1;
+    return (await this.media(`${uuid}.mkv?stream=${n}`)) || `rtsp://${this.creds()}${this.host}:${this.rtspPort}/${uuid}?stream=${n}`;
+  }
+  async playbackUrl(uuid, startMs, endMs) {
+    const m = await this.media(`${uuid}.mkv?pos=${Math.floor(startMs)}${endMs ? `&endPos=${Math.floor(endMs)}` : ''}`);
+    if (m) return { ...m, realtime: true };
     let u = `rtsp://${this.creds()}${this.host}:${this.rtspPort}/${uuid}?stream=0&pos=${Math.floor(startMs)}`;
     if (endMs) u += `&endpos=${Math.floor(endMs)}`;
     return u;
