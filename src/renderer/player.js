@@ -78,6 +78,7 @@ export class Player {
       });
     } catch (e) {
       this.setStatus('error', e.message);
+      this.lastError = e.message;
       this.scheduleRetry();
     }
     clearInterval(this._statsTimer);
@@ -163,7 +164,7 @@ export class Player {
     const b = v.buffered;
     if (!b.length) return;
     const start = b.start(b.length - 1), end = b.end(b.length - 1);
-    if (this.statusText !== 'playing' && end - start > 0.2) this.setStatus('playing', this.detailText());
+    if (this.statusText !== 'playing' && end - start > 0.2) { this.lastError = null; this.setStatus('playing', this.detailText()); }
     if (v.currentTime < start || (v.readyState < 2 && end - start > 0.5)) v.currentTime = Math.max(start, end - 0.5);
     if (this.opts.kind === 'live' && end - v.currentTime > 2.5) v.currentTime = end - 0.4;
     if (v.paused && !this._userPaused) v.play().catch(() => {});
@@ -198,7 +199,7 @@ export class Player {
       if (this._stall >= (this.opts.stallSeconds || 12)) {
         this._stall = 0;
         if (this.opts.noRetry) { this.setStatus('error', 'no data'); this.stop(false); this.opts.onEnded && this.opts.onEnded(); }
-        else { this.setStatus('reconnecting', 'no data'); this.restart(); }
+        else { this.lastError = 'no data'; this.setStatus('reconnecting', 'no data'); this.restart(); }
       }
     } else this._stall = 0;
   }
@@ -239,6 +240,7 @@ export class Player {
       return;
     }
     this.setStatus('error', msg);
+    this.lastError = msg;
     this.scheduleRetry();
   }
 
@@ -247,7 +249,9 @@ export class Player {
     if (this.stopped || this.opts.noRetry) return;
     const delay = Math.min(10000, 1500 * Math.pow(2, Math.min(this.retry, 4))); // capped at 10 s: slow relays (Reolink UID) would otherwise wait 24 s per tile
     this.retry++;
-    this.setStatus('reconnecting', `retry in ${Math.round(delay / 1000)}s`);
+    // keep the cause visible while waiting ("Reconnecting… 401 Unauthorized — retry in 10s"), not just the countdown
+    const why = String(this.lastError || '').trim().split('\n').pop().replace(/^\[[^\]]*\]\s*/, '').slice(0, 90);
+    this.setStatus('reconnecting', `${why ? why + ' — ' : ''}retry in ${Math.round(delay / 1000)}s`);
     this._retryTimer = setTimeout(() => this.restart(), delay);
   }
 

@@ -11,7 +11,7 @@ const path = require('path');
 const ffmpegBin = require('./ffmpeg');
 const { PsDecryptor, TsDecryptor } = require('./hikstream');
 
-function sanitizeUrl(u) { return String(u).replace(/\/\/[^@/]*@/, '//***@'); }
+function sanitizeUrl(u) { return String(u).replace(/\/\/[^@/\s]*@/g, '//***@'); }
 const NETWORK_ERROR = /401|403|404|Unauthorized|refused|timed out|Connection|No route|resolve|Immediate exit|Server returned/i;
 
 class StreamManager {
@@ -69,7 +69,8 @@ class StreamManager {
       if (!wc.isDestroyed()) wc.send('stream:data', opts.id, chunk);
     });
     proc.stderr.on('data', (d) => {
-      const lines = d.toString().split(/\r?\n/).filter(Boolean);
+      // ffmpeg repeats the input URL (with the password) in its errors; these lines reach the log and the tile
+      const lines = d.toString().split(/\r?\n/).filter(Boolean).map(sanitizeUrl);
       entry.errors.push(...lines);
       if (entry.errors.length > 20) entry.errors.splice(0, entry.errors.length - 20);
     });
