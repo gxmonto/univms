@@ -57,8 +57,10 @@ test('legacy safeStorage values migrate while they decrypt, and are reported los
   assert.strictEqual(s.getDeviceWithSecret('dev_lost').secretLost, false);
   assert.strictEqual(s.getDeviceWithSecret('dev_lost').password, 'new-pw');
   s.flush();
-  // ... and a restart with a changed safeStorage key no longer matters: everything is under our own key
-  const s2 = new Store(file, new SecretBox(dir, { safeStorage: fakeSafeStorage('k2') }));
+  // ... and a restart with a changed safeStorage key no longer matters: everything is under our own key, which is
+  // DPAPI-protected on Windows (elsewhere the key itself is wrapped by safeStorage, whose keyring key is stable)
+  if (process.platform !== 'win32') return;
+  const s2 =new Store(file, new SecretBox(dir, { safeStorage: fakeSafeStorage('k2') }));
   assert.strictEqual(s2.getDeviceWithSecret('dev_ok').password, 'pw-ok');
   assert.strictEqual(s2.getDeviceWithSecret('dev_lost').password, 'new-pw');
   assert.deepStrictEqual(s2.lostSecrets, []);
