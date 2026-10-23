@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Security: updated the built-in browser engine (Electron 33 → 44), which fixes a long list of known vulnerabilities; the app window now also runs in a sandbox, and file actions only work on files in your snapshot and recording folders.
+
 - Settings: removed two streaming options that had no effect (automatic reconnect is always on).
 
 ## 1.4.16 - 2026-10-23
