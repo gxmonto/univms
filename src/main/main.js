@@ -79,7 +79,7 @@ if (!gotLock && !SMOKE && !E2E) {
       frame: false, // custom title bar with min/max/close in the renderer (same as TwinLine)
       icon: path.join(__dirname, '..', '..', 'build', process.platform === 'win32' ? 'icon.ico' : 'icons/256x256.png'),
       webPreferences: {
-        preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: false,
+        preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true,
         backgroundThrottling: false, spellcheck: false,
       },
     });

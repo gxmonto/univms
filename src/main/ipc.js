@@ -15,6 +15,15 @@ function ts(d = new Date()) {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 const safeName = (s) => String(s || 'camera').replace(/[^\w.-]+/g, '_').slice(0, 60);
+// File handlers take paths from the renderer: allow only existing files inside one of `roots` (symlinks resolved on
+// both sides), so a compromised renderer cannot read, trash or launch anything else on the PC.
+function insideRoots(p, roots) {
+  const norm = (x) => (process.platform === 'win32' ? x.toLowerCase() : x);
+  const real = fs.realpathSync(String(p));
+  const ok = roots.some((d) => { try { return norm(real).startsWith(norm(fs.realpathSync(d)) + path.sep); } catch (_) { return false; } });
+  if (!ok) throw new Error('Not a UniVMS snapshot or recording');
+  return real;
+}
 
 function register(ctx) {
   const { store, pool, streams, hub, broadcast, createWindow, log } = ctx;
@@ -72,8 +81,9 @@ function register(ctx) {
   h('updates:skip', (_e, version) => { if (!ctx.updater) return null; const v = ctx.updater.skip(version); store.setSettings({ updates: { ...store.getSettings().updates, skippedVersion: v } }); return v; });
   h('updates:dismiss', () => ctx.updater ? ctx.updater.dismiss() : null);
   h('updates:configure', (_e, patch) => { const u = { ...store.getSettings().updates, ...patch }; store.setSettings({ updates: u }); if (ctx.updater) ctx.updater.configure(u); return u; });
-  h('app:openPath', (_e, p) => shell.openPath(p));
-  h('app:showInFolder', (_e, p) => shell.showItemInFolder(p));
+  const mediaFile = (p) => insideRoots(p, Object.values(dirs()));
+  h('app:openPath', (_e, p) => shell.openPath(mediaFile(p)));
+  h('app:showInFolder', (_e, p) => shell.showItemInFolder(mediaFile(p)));
   h('window:fullscreen', (e, on) => { const w = BrowserWindow.fromWebContents(e.sender); if (w) w.setFullScreen(on === undefined ? !w.isFullScreen() : !!on); return w ? w.isFullScreen() : false; });
   h('window:openAux', (_e, params) => { createWindow(params || {}); return true; });
   h('window:minimize', (e) => { const w = BrowserWindow.fromWebContents(e.sender); w && w.minimize(); });
@@ -387,13 +397,14 @@ function register(ctx) {
     return { dir, files: out.sort((a, b) => b.mtime - a.mtime) };
   });
   h('files:read', (_e, p) => {
+    p = mediaFile(p);
     const st = fs.statSync(p);
     if (st.size > 50 * 1024 * 1024) throw new Error('File too large to preview');
     const ext = path.extname(p).toLowerCase().slice(1);
     const mime = ext === 'mp4' ? 'video/mp4' : ext === 'png' ? 'image/png' : 'image/jpeg';
     return `data:${mime};base64,${fs.readFileSync(p).toString('base64')}`;
   });
-  h('files:trash', async (_e, p) => { await shell.trashItem(p); return true; });
+  h('files:trash', async (_e, p) => { await shell.trashItem(mediaFile(p)); return true; });
 
   // ---------- playback ----------
   h('playback:search', async (_e, { cameraId, start, end }) => {
@@ -497,4 +508,4 @@ function register(ctx) {
   h('config:status', () => ({ file: store.file, lastFlush: store.lastFlush || null, lastError: store.lastError || null }));
 }
 
-module.exports = { register };
+module.exports = { register, insideRoots };
