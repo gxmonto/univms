@@ -50,7 +50,7 @@ export class Player {
     video.addEventListener('error', this._onVideoError);
     video.muted = true;
     video.playsInline = true;
-    video.autoplay = true;
+    video.autoplay = !this.opts.liveDelay; // with a cushion, afterAppend starts playback once it is buffered
   }
 
   setStatus(s, detail) {
@@ -61,6 +61,7 @@ export class Player {
   async start() {
     this.stop(false);
     this.stopped = false;
+    this._cushioned = false;
     this.id = `s${++seq}_${Date.now().toString(36)}`;
     players.set(this.id, this);
     this.splitter.reset();
@@ -170,8 +171,17 @@ export class Player {
     // every append kept those tiles black (bitrate shown, readyState 1). So: seek only when outside the buffer or far
     // behind, never while a seek runs; otherwise catch up by playing a little faster.
     const lag = end - v.currentTime;
-    if (!v.seeking && (v.currentTime < start || (this.opts.kind === 'live' && lag > 10))) v.currentTime = Math.max(start, end - 0.5);
-    else if (this.opts.kind === 'live') { const rate = lag > 1.5 ? 1.25 : 1; if (v.playbackRate !== rate) v.playbackRate = rate; }
+    // opts.liveDelay: cushion (s) for bursty sources (Reolink relay: all cameras pause together for 1–5 s); the tile stays
+    // that far behind live and only drifts the speed a little, instead of freezing at the edge and rushing at 1.25×
+    const cushion = this.opts.liveDelay || 0;
+    if (!v.seeking && (v.currentTime < start || (this.opts.kind === 'live' && lag > 10 + cushion))) v.currentTime = Math.max(start, end - 0.5 - cushion);
+    else if (this.opts.kind === 'live') {
+      const rate = cushion ? (lag < cushion - 1.5 ? 0.95 : lag > cushion + 1.5 ? 1.05 : 1) : (lag > 1.5 ? 1.25 : 1);
+      if (v.playbackRate !== rate) v.playbackRate = rate;
+    }
+    // with a cushion, the first picture waits until that much video is buffered (else it starts at the live edge and
+    // would have to play slowed down for half a minute to build the cushion)
+    if (cushion && !this._cushioned) { if (end - start < cushion) return; this._cushioned = true; }
     if (v.paused && !this._userPaused) v.play().catch(() => {});
   }
 
