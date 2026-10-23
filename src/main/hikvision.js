@@ -245,10 +245,6 @@ class HikvisionDevice {
     return asArray((x.PatrolList || {}).Patrol).map((p) => ({ id: Number(p.id), name: p.patrolName || `Patrol ${p.id}`, enabled: b(p.enabled !== undefined ? p.enabled : 'true') }));
   }
   ptzPatrol(channel, patrolId, start) { return this.put(`/ISAPI/PTZCtrl/channels/${channel}/patrols/${patrolId}/${start ? 'start' : 'stop'}`, '', { timeout: 6000 }); }
-  ptzAbsoluteZoom(channel, zoom) {
-    // 3D positioning is PUT /ISAPI/PTZCtrl/channels/N/position3D; used for click-to-center
-    return this.put(`/ISAPI/PTZCtrl/channels/${channel}/absolute`, `<?xml version="1.0" encoding="UTF-8"?><PTZData><AbsoluteHigh><absoluteZoom>${Math.round(zoom)}</absoluteZoom></AbsoluteHigh></PTZData>`, { timeout: 6000 });
-  }
   ptzPosition3D(channel, startX, startY, endX, endY) {
     const body = `<?xml version="1.0" encoding="UTF-8"?><Position3D><StartPoint><positionX>${Math.round(startX)}</positionX><positionY>${Math.round(startY)}</positionY></StartPoint><EndPoint><positionX>${Math.round(endX)}</positionX><positionY>${Math.round(endY)}</positionY></EndPoint></Position3D>`;
     return this.put(`/ISAPI/PTZCtrl/channels/${channel}/position3D`, body, { timeout: 6000 });

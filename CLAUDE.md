@@ -115,6 +115,8 @@ Version is `1.X.Y`.
 
 ## Session log
 
+- **2026-10-23 — cleanup (ponytail audit, branch `cleanup`)**: removed dead settings `autoReconnect`/`hwDecode` (UI toggles nothing read) and `ffprobePath` + the ffprobe lookup (never run), `Player.seek`, `HikvisionDevice.ptzAbsoluteZoom`, preload `pathForFile`, workflow `check-assets-token.yml`; Hanwha uses Dahua's `parseKv`. Verified: CI syntax check, 43 unit tests, smoke, e2e.
+
 - **2026-10-21 — Reolink via UID**: 101 Franklin (RLN16-410 NVR, fw v3.5.1.356) reachable only through the Reolink relay. Forked Neolink (`gxmonto/neolink`, branch `univms`, CI = Windows build only), fixed (branch `univms`, 6 commits): Windows UDP ConnectionReset, refused StreamInfoList fallback, non-zero fps/bitrate defaults, undecodable-push-payload passthrough, zeroed magic header, and the key one — `RTSPSuspendMode::Reset`→`None` so the live media is not torn down between SETUP and PLAY; bundled a pruned GStreamer 1.26.10 runtime (extracted from the msi with `msiexec /a … TARGETDIR=`, pruned with a PE import-closure script → ~62 MB incl. libav for AAC), new device type `reolinkuid` + driver `src/main/reolinkuid.js` + helper `src/main/neolink.js` + dialog fields (UID, channels), `scripts/fetch-neolink.js`, bundling in electron-builder.yml + release.yml, test `tests/neolink.test.js`. **Live view verified working end to end on 101 Franklin (sub + 4K main).** Pruned runtime zip `neolink-win32-x64.zip` uploaded to univms-assets release `neolink-v0.6.3-univms1` for `scripts/fetch-neolink.js`. Unreleased in UniVMS.
 
 - **2026-10-07 — cleanup (ponytail audit)**: removed dead IPC handlers, unused exports/helpers, settings `language`/`theme`, `PlainBox` (tests build a `SecretBox` in a temp dir), `scripts/make-icons.js` (icons are checked in; regenerate from git history if ever needed), `scripts/build-linux-wsl.sh` + `dist:linux:wsl` (WSL has no network here), `scripts/release-notes.js` (`bump.js` already commits `release-notes.md`, which electron-builder reads via `releaseInfo.releaseNotesFile`). `discover()` only takes `{ dw }`. Released as 1.1.1.
@@ -124,7 +126,7 @@ Version is `1.X.Y`.
 
 - **2026-10-02 — reset to 1.0.0**: all earlier releases/tags (v1.0.0…v1.3.3) deleted as test releases; changelog consolidated into one 1.0.0 entry; current build republished as v1.0.0. Installed 1.3.x copies had allowDowngrade=false and must install 1.0.0 manually once; from 1.0.0 on `allowDowngrade = true`, so publishing a lower version (rollback) is picked up as an update.
 
-- **2026-10-02 — 1.3.2/1.3.3**: repo made public (updates work tokenless), SDK runtime moved to private `univms-assets` with `ASSETS_TOKEN`; manual `check-assets-token` workflow; updater installs silently (`quitAndInstall(true, true)`) and relaunches — user does not want to see the NSIS wizard on updates.
+- **2026-10-02 — 1.3.2/1.3.3**: repo made public (updates work tokenless), SDK runtime moved to private `univms-assets` with `ASSETS_TOKEN`; manual `check-assets-token` workflow (removed 2026-10-23: release builds fail clearly at the SDK fetch anyway); updater installs silently (`quitAndInstall(true, true)`) and relaunches — user does not want to see the NSIS wizard on updates.
 
 - **2026-10-02 — 1.3.1**: lockout protection after credential failures, SDK TCP pre-check and forced port 8000, robust config saving with error toast, persistent main log, config-save status in Settings.
 

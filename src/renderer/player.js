@@ -299,12 +299,6 @@ export class Player {
     this.transcode = false;
     this.restart();
   }
-  seek(startMs, endMs) {
-    this.opts.startMs = startMs;
-    if (endMs !== undefined) this.opts.endMs = endMs;
-    this.retry = 0;
-    this.restart();
-  }
 
   stop(final = true) {
     this.stopped = true;

@@ -9,7 +9,7 @@
  */
 const { request, HttpError } = require('./httpclient');
 
-const parseKv = (text) => { const o = {}; for (const line of String(text || '').split(/\r?\n/)) { const i = line.indexOf('='); if (i > 0) o[line.slice(0, i).trim()] = line.slice(i + 1).trim(); } return o; };
+const { parseKv } = require('./dahua'); // same key=value format
 const iso = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 class HanwhaDevice {
@@ -169,4 +169,4 @@ class HanwhaDevice {
   logs() { return Promise.resolve([]); }
 }
 
-module.exports = { HanwhaDevice, parseKv };
+module.exports = { HanwhaDevice };

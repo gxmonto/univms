@@ -67,8 +67,7 @@ function hwaccels(bin) {
 
 function status(settings = {}) {
   const ffmpeg = resolve('ffmpeg', settings.ffmpegPath);
-  const ffprobe = resolve('ffprobe', settings.ffprobePath);
-  return { ffmpeg, ffprobe, ffmpegVersion: version(ffmpeg), hwaccels: hwaccels(ffmpeg) };
+  return { ffmpeg, ffmpegVersion: version(ffmpeg), hwaccels: hwaccels(ffmpeg) };
 }
 
 function clearCache() { for (const k of Object.keys(cache)) delete cache[k]; }

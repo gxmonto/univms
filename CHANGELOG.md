@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Settings: removed two streaming options that had no effect (automatic reconnect is always on).
+
 ## 1.4.16 - 2026-10-23
 
 - Reolink via UID: smooth video. Cameras behind the Reolink relay played too fast and kept freezing and jumping; they now play at their real speed with a steady picture, about 3 seconds behind live.

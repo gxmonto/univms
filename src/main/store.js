@@ -20,11 +20,9 @@ const DEFAULTS = {
     snapshotDir: '',
     recordDir: '',
     ffmpegPath: '',
-    ffprobePath: '',
     defaultStream: 'sub',
     rtspTransport: 'tcp',
     lowLatency: true,
-    autoReconnect: true,
     alarmPopup: false, // events still reach the Event Center; popups/sound are opt-in (user: "spam of alerts")
     alarmSound: false,
     alarmTypes: ['VMD', 'linedetection', 'fielddetection', 'IO', 'videoloss', 'shelteralarm', 'cameraMotionEvent', 'cameraInputEvent', 'cameraDisconnectEvent'],
@@ -34,7 +32,6 @@ const DEFAULTS = {
     startFullscreen: false,
     updates: { mode: 'ask', url: '', token: '', skippedVersion: '' },
     autoSwitchInterval: 10,
-    hwDecode: true,
     eventRetention: 2000,
   },
 };
