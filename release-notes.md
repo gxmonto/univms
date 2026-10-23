@@ -1,1 +1,1 @@
-- Fixed: tiles that showed the codec and bitrate but stayed black (seen on DW Spectrum and Reolink cameras with few keyframes). The player kept jumping to the newest video before the picture could be decoded; it now catches up by playing slightly faster and only jumps when it is far behind.
+- Reolink via UID: smooth video. Cameras behind the Reolink relay played too fast and kept freezing and jumping; they now play at their real speed with a steady picture, about 3 seconds behind live.
