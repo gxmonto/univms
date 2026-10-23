@@ -1,0 +1,84 @@
+# Builds our Neolink fork (gxmonto/neolink, used for Reolink via UID). Lives here because Actions do not run on the fork.
+# Output: artifact neolink-windows (neolink.exe + OpenSSL DLLs); packaged into univms-assets by hand.
+name: Neolink build
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or commit of gxmonto/neolink
+        default: univms
+
+defaults:
+  run:
+    working-directory: neolink
+
+jobs:
+  native:
+    name: native
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: gxmonto/neolink
+          ref: ${{ inputs.ref }}
+          path: neolink
+      - name: Install Windows deps
+        run: |
+          # Gstreamer
+          choco install -y --no-progress gstreamer --version=1.26.9
+          choco install -y --no-progress gstreamer-devel --version=1.26.9
+          $env:GSTREAMER_1_0_ROOT_MSVC_X86_64 = ''
+          foreach ($c in @("$env:ProgramFiles\gstreamer\1.0\msvc_x86_64\", "$env:SYSTEMDRIVE\gstreamer\1.0\msvc_x86_64\", 'D:\gstreamer\1.0\msvc_x86_64\')) {
+            if (Test-Path -Path $c -PathType Container) { $env:GSTREAMER_1_0_ROOT_MSVC_X86_64 = $c; break }
+          }
+          echo "GSTREAMER_1_0_ROOT_MSVC_X86_64=$env:GSTREAMER_1_0_ROOT_MSVC_X86_64"
+
+          # Proto buffers
+          choco install -y --no-progress protoc --version=24.2.0
+
+          # Open SSL
+          choco install -y --no-progress openssl --version=1.1.1.2100
+          $env:OPENSSL_DIR=$env:SYSTEMDRIVE + '\Program Files\OpenSSL-Win64\'
+          if (-not (Test-Path -Path "$env:OPENSSL_DIR" -PathType Container)) {
+            $env:OPENSSL_DIR=$env:SYSTEMDRIVE + '\Program Files\OpenSSL\'
+          }
+          if (-not (Test-Path -Path "$env:OPENSSL_DIR" -PathType Container)) {
+            $env:OPENSSL_DIR='D:\\Program Files\OpenSSL-Win64\'
+          }
+          if (-not (Test-Path -Path "$env:OPENSSL_DIR" -PathType Container)) {
+            $env:OPENSSL_DIR='D:\\Program Files\OpenSSL\'
+          }
+
+          Add-Content -Path $env:GITHUB_ENV  -Value "GSTREAMER_1_0_ROOT_MSVC_X86_64=$env:GSTREAMER_1_0_ROOT_MSVC_X86_64"
+          Add-Content -Path $env:GITHUB_PATH  -Value "$env:GSTREAMER_1_0_ROOT_MSVC_X86_64\bin"
+          Add-Content -Path $env:GITHUB_PATH  -Value "%GSTREAMER_1_0_ROOT_MSVC_X86_64%\bin"
+          Add-Content -Path $env:GITHUB_ENV  -Value "OPENSSL_DIR=$env:OPENSSL_DIR"
+
+          dir "$env:GSTREAMER_1_0_ROOT_MSVC_X86_64"
+          dir "$env:OPENSSL_DIR"
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('neolink/Cargo.lock') }}
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: neolink/target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('neolink/Cargo.lock') }}
+      - name: Build
+        shell: bash
+        run: |
+          echo "GSTREAMER_1_0_ROOT_MSVC_X86_64=${GSTREAMER_1_0_ROOT_MSVC_X86_64}"
+          cargo build --release --all-features
+      - name: Collect
+        shell: bash
+        run: |
+          mkdir -p out && cp target/release/neolink.exe out/
+          cp "${OPENSSL_DIR}/bin/libcrypto-1_1-x64.dll" "${OPENSSL_DIR}/bin/libssl-1_1-x64.dll" out/ || cp "${OPENSSL_DIR}"/*.dll out/ || true
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: neolink-windows
+          path: neolink/out/
