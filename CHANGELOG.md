@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-- Fixed: tiles that showed the codec and bitrate but stayed black (seen on DW Spectrum and Reolink cameras with few keyframes). The player kept jumping to the newest video before the picture could be decoded; it now catches up by playing slightly faster and only jumps when it is far behind.
+## 1.4.15 - 2026-10-23
 
+- Fixed: tiles that showed the codec and bitrate but stayed black (seen on DW Spectrum and Reolink cameras with few keyframes). The player kept jumping to the newest video before the picture could be decoded; it now catches up by playing slightly faster and only jumps when it is far behind.
 ## 1.4.14 - 2026-10-22
 
 - DW Spectrum: cameras open much faster and more reliably on large systems. Video now comes straight from the server that records each camera instead of being relayed through the one you added, the first picture appears in about 1–3 seconds instead of 3–8, and connections a server drops right away are reopened automatically instead of leaving the tile waiting.
