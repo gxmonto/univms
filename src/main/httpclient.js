@@ -6,7 +6,38 @@
 const http = require('http');
 const https = require('https');
 const crypto = require('crypto');
+const net = require('net');
+const tls = require('tls');
 const { URL } = require('url');
+
+// Trust on first use for HTTPS devices (their self-signed certificates cannot be verified): the first certificate seen
+// for a host:port is remembered; a different one later fails with `certChanged` before any request byte (password,
+// token) is sent. `pins` = { get(hostport), set(hostport, sha256) }, store-backed, set by main.js; none = no pinning.
+let pins = null;
+function setCertPins(p) { pins = p; }
+function pinnedConnect(opts, cb) {
+  const host = opts.hostname || opts.host;
+  const hostport = `${host}:${opts.port}`;
+  let done = false;
+  const finish = (err, sock) => { if (done) return; done = true; cb(err, sock); };
+  const s = tls.connect({ host, port: opts.port, servername: net.isIP(host) ? undefined : host, rejectUnauthorized: false });
+  s.setTimeout(opts.timeout || 15000, () => s.destroy(new Error(`TLS connection to ${hostport} timed out`)));
+  s.once('error', (e) => finish(e));
+  s.once('secureConnect', () => {
+    s.setTimeout(0);
+    const fp = (s.getPeerCertificate() || {}).fingerprint256;
+    const known = pins && fp ? pins.get(hostport) : null;
+    if (known && known !== fp) {
+      s.destroy();
+      const e = new HttpError(0, `The security certificate of ${hostport} changed. If the device was reset or updated, right-click it and choose "Trust new certificate"; otherwise someone may be intercepting the connection.`, hostport);
+      e.certChanged = hostport;
+      return finish(e);
+    }
+    if (pins && fp && !known) pins.set(hostport, fp);
+    finish(null, s);
+  });
+  // returns nothing: http.request waits for the callback, so no header is written before the certificate check
+}
 
 const md5 = (s) => crypto.createHash('md5').update(s).digest('hex');
 // host:port -> cached digest challenge (saves a round-trip on every request)
@@ -60,6 +91,7 @@ function rawRequest(urlStr, { method = 'GET', headers = {}, body, timeout = 1500
       // own socket per request: Node 20's default agent keeps sockets alive and reused one the server had closed after our Connection: close (every second request failed with ECONNRESET)
       agent: false,
     };
+    if (isHttps) { opts.agent = undefined; opts.createConnection = pinnedConnect; } // Node uses createConnection only without an agent (agent:false builds a throwaway one); still one socket per request
     if (body !== undefined && body !== null) {
       const buf = Buffer.isBuffer(body) ? body : Buffer.from(String(body), 'utf8');
       opts.headers['Content-Length'] = buf.length;
@@ -168,9 +200,9 @@ function streamRequest(urlStr, { method = 'PUT', headers = {}, auth, timeout = 0
     const ch = challenges.get(key);
     if (ch) h.Authorization = digestAuthorization(ch, method, uri, auth.username, auth.password);
   }
-  const req = lib.request({ method, hostname: u.hostname, port: u.port || (isHttps ? 443 : 80), path: uri, headers: h, rejectUnauthorized: false, timeout });
+  const req = lib.request({ method, hostname: u.hostname, port: u.port || (isHttps ? 443 : 80), path: uri, headers: h, rejectUnauthorized: false, timeout, ...(isHttps ? { createConnection: pinnedConnect } : {}) });
   const response = new Promise((resolve, reject) => { req.on('response', resolve); req.on('error', reject); });
   return { req, response };
 }
 
-module.exports = { request, rawRequest, streamRequest, HttpError, parseAuthHeader };
+module.exports = { request, rawRequest, streamRequest, HttpError, parseAuthHeader, setCertPins };

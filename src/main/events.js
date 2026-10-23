@@ -84,6 +84,12 @@ class EventHub extends EventEmitter {
     return !!(st && st.authFailed && dev && st.authFailedAt >= (dev.updatedAt || 0));
   }
   noteFailure(deviceId, e) {
+    if (e && e.certChanged) {
+      // no password was sent (httpclient checks before writing); keep it visible until the user trusts the new certificate
+      this.setStatus(deviceId, { online: false, error: e.message, certChanged: e.certChanged });
+      this.unsubscribe(deviceId);
+      return true;
+    }
     if (e && e.authFailure) {
       this.setStatus(deviceId, { online: false, error: e.message, authFailed: true, authFailedAt: Date.now(), secretLost: !!e.secretLost });
       this.unsubscribe(deviceId);

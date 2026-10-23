@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Security: UniVMS remembers each device's security certificate the first time it connects over HTTPS. If it changes later, the device is marked "Certificate changed" and nothing (no password) is sent until you right-click it and choose "Trust new certificate" — protection against someone intercepting the connection.
+
 - Security: updated the built-in browser engine (Electron 33 → 44), which fixes a long list of known vulnerabilities; the app window now also runs in a sandbox, and file actions only work on files in your snapshot and recording folders.
 
 - Settings: removed two streaming options that had no effect (automatic reconnect is always on).

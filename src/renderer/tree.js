@@ -1,5 +1,5 @@
 // Camera tree (by device or by group) with search, drag & drop, context menu
-import { state, el, svg, bus, api, toast, contextMenu, promptText, modal, deviceById, actions } from './core.js';
+import { state, el, svg, bus, api, toast, contextMenu, promptText, modal, confirm, deviceById, actions } from './core.js';
 
 export const DT_CAMERA = 'application/x-univms-camera';
 export const DT_DEVICE = 'application/x-univms-device';
@@ -188,6 +188,7 @@ export function deviceMenuItems(dev, cams, opts = {}) {
     dev.type === 'hikvision' && { label: dev.hasStreamKey ? 'Stream encryption key… (set)' : 'Stream encryption key…', icon: 'edit', onClick: () => import('./streamkey.js').then((m) => m.setStreamKey(dev.id)) },
     dev.type === 'hikvision' && { label: 'Two-way audio with the recorder (speaker on the NVR)', icon: 'mic', onClick: () => import('./talkbar.js').then((m) => m.talkToDevice(dev)) },
     dev.type === 'dwspectrum' && { label: 'Import layouts from DW…', icon: 'grid', onClick: () => import('./dwlayouts.js').then((m) => m.importDwLayouts(dev)) },
+    dev.status && dev.status.certChanged && { label: 'Trust new certificate', icon: 'lock', onClick: async () => { if (!(await confirm(`The security certificate of ${dev.status.certChanged} changed. Trust it only if you know the device was reset, updated or replaced.`, { title: 'Trust new certificate', okLabel: 'Trust' }))) return; try { await api('devices:trustCert', dev.id); toast(`${dev.name}: new certificate trusted`, 'ok'); } catch (e) { toast(e.message, 'err'); } } },
     { label: 'Re-import channels (refresh camera list)', icon: 'refresh', onClick: async () => { try { const r = await api('devices:refresh', dev.id); toast(`${dev.name}: ${r.cameras.length} channel(s) imported`, 'ok'); } catch (e) { toast(e.message, 'err'); } } },
     '-',
     { label: 'Delete device', icon: 'trash', danger: true, onClick: () => run('deleteDevice', dev) },

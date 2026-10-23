@@ -168,6 +168,8 @@ if (!gotLock && !SMOKE && !E2E) {
     log('config file', store.file, '| secrets key:', secrets.scheme, secrets.keyError ? `(previous key unreadable: ${secrets.keyError})` : '');
     if (store.lostSecrets.length) log('secrets: saved passwords unreadable for devices', store.lostSecrets.join(', '));
     store.onError = (msg) => { log('store error', msg); broadcast('app:error', msg); };
+    // HTTPS devices: certificate fingerprints remembered on first use (httpclient refuses a changed one)
+    require('./httpclient').setCertPins({ get: (k) => (store.data.certPins || {})[k], set: (k, fp) => { store.data.certPins = { ...(store.data.certPins || {}), [k]: fp }; store.save(); } });
     pool = new DriverPool(store);
     streams = new StreamManager(() => store.getSettings()); streams.log = log;
     require('./sdkproxy').setLog(log);

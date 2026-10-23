@@ -185,6 +185,15 @@ function register(ctx) {
   setTimeout(() => refreshUidDevices(['reolinkuid', 'dwspectrum']), 8000).unref();
   setInterval(() => refreshUidDevices(), 10 * 60 * 1000).unref();
   h('devices:refresh', (_e, id) => refreshDevice(id));
+  // "Trust new certificate": forget the remembered fingerprint of the address that changed, then reconnect (pins anew)
+  h('devices:trustCert', async (_e, id) => {
+    const st = hub.status.get(id) || {};
+    if (st.certChanged && store.data.certPins) { delete store.data.certPins[st.certChanged]; store.save(); }
+    hub.setStatus(id, { certChanged: null, error: null });
+    pool.drop(id);
+    hub.subscribe(id);
+    return refreshDevice(id);
+  });
   h('devices:refreshAll', async () => {
     const out = {};
     for (const d of store.list('devices')) {
