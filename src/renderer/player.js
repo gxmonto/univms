@@ -165,8 +165,13 @@ export class Player {
     if (!b.length) return;
     const start = b.start(b.length - 1), end = b.end(b.length - 1);
     if (this.statusText !== 'playing' && end - start > 0.2) { this.lastError = null; this.setStatus('playing', this.detailText()); }
-    if (v.currentTime < start || (v.readyState < 2 && end - start > 0.5)) v.currentTime = Math.max(start, end - 0.5);
-    if (this.opts.kind === 'live' && end - v.currentTime > 2.5) v.currentTime = end - 0.4;
+    // Seeking is expensive with a long keyframe interval (the decoder restarts from the previous keyframe: ~2 s on the
+    // DW cameras here), and afterAppend runs per fragment (per frame for DW/Reolink UID). Re-seeking to the live edge on
+    // every append kept those tiles black (bitrate shown, readyState 1). So: seek only when outside the buffer or far
+    // behind, never while a seek runs; otherwise catch up by playing a little faster.
+    const lag = end - v.currentTime;
+    if (!v.seeking && (v.currentTime < start || (this.opts.kind === 'live' && lag > 10))) v.currentTime = Math.max(start, end - 0.5);
+    else if (this.opts.kind === 'live') { const rate = lag > 1.5 ? 1.25 : 1; if (v.playbackRate !== rate) v.playbackRate = rate; }
     if (v.paused && !this._userPaused) v.play().catch(() => {});
   }
 
