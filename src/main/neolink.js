@@ -69,7 +69,10 @@ async function ensure(dev) {
   const cur = procs.get(dev.id);
   if (cur && cur.key === key && cur.proc.exitCode === null) return cur.port;
   if (cur) stop(dev.id);
-  const d = dir();
+  // the portable build unpacks ~165 MB to %TEMP% at launch and Defender scans new exes: neolink.exe can be missing or
+  // unreadable for the first seconds (user saw "not bundled" until a later retry), so wait up to 15 s before giving up
+  let d = dir();
+  for (let i = 0; !d && i < 30; i++) { await new Promise((r) => setTimeout(r, 500)); d = dir(); }
   if (!d) throw new Error('Reolink UID support (Neolink) is not bundled in this build');
   const port = await freePort();
   const cfgDir = path.join(userData, 'neolink'); fs.mkdirSync(cfgDir, { recursive: true });
