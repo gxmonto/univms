@@ -158,6 +158,25 @@ async function run(ctx, win, app) {
     await shot('10-layout-full');
     win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' }); await sleep(1200);
     results.layoutFullExited = await js(`!document.body.classList.contains('layout-full')`) && !win.isFullScreen();
+    // make a tile bigger: it spans the grid, the other camera moves to a new row, the stream keeps running (same element)
+    await js(`window.__v0 = document.querySelector('.tile[data-idx="0"] video'); document.querySelector('.tile[data-idx="0"]').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 300, clientY: 300 }));
+      [...document.querySelectorAll('.ctx-menu button')].find((b) => b.textContent.includes('Make bigger')).click()`);
+    await sleep(1500);
+    results.tileExpanded = await js(`(() => { const g = document.querySelector('.vgrid').getBoundingClientRect(), t = document.querySelector('.tile[data-idx="0"]'), r = t.getBoundingClientRect(), v = t.querySelector('video');
+      return r.width > g.width * 0.9 && v === window.__v0 && v.videoWidth > 0 && !v.paused && [...document.querySelectorAll('.tile video')].filter((x) => x.videoWidth > 0).length === 2; })()`);
+    await shot('11-tile-expanded');
+    // zoom window: drag a box on the camera, a new tile shows that region from the same video
+    await js(`document.querySelector('.tile[data-idx="0"] .tools button[title^="Create zoom"]').click()`);
+    const box = await js(`(() => { const r = document.querySelector('.tile[data-idx="0"]').getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) }; })()`);
+    const at = (fx, fy) => ({ x: Math.round(box.x + box.w * fx), y: Math.round(box.y + box.h * fy) });
+    const p0 = at(0.3, 0.3), p1 = at(0.6, 0.6);
+    win.webContents.sendInputEvent({ type: 'mouseDown', ...p0, button: 'left', clickCount: 1 });
+    for (let k = 1; k <= 5; k++) { win.webContents.sendInputEvent({ type: 'mouseMove', x: p0.x + ((p1.x - p0.x) * k) / 5, y: p0.y + ((p1.y - p0.y) * k) / 5, button: 'left' }); await sleep(50); }
+    win.webContents.sendInputEvent({ type: 'mouseUp', ...p1, button: 'left', clickCount: 1 });
+    await sleep(1500);
+    results.zoomWindow = await js(`(() => { const c = document.querySelector('.tile.zoom-tile canvas.zoomwin'), f = document.querySelector('.zoom-frame'); if (!c || !f || !c.width) return false;
+      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let lit = 0; for (let k = 0; k < d.length; k += 400) if (d[k] + d[k + 1] + d[k + 2] > 60) lit++; return lit > 50; })()`);
+    await shot('12-zoom-window');
   } catch (e) {
     results.error = e.message;
   } finally {
@@ -165,7 +184,7 @@ async function run(ctx, win, app) {
   }
   log('E2E RESULTS', results);
   fs.writeFileSync(path.join(outDir, 'results.json'), JSON.stringify(results, null, 2));
-  const pass = results.deviceAdded && results.cameras > 0 && results.livePlaying && results.mapImageWidth > 0 && results.mapHotspots === 1 && results.events > 0 && results.treeDraggable === 'true' && results.dropAssigned === true && results.talkBytesAtDevice > 0 && results.talkClosed === 1 && Array.isArray(results.rulesTabs) && results.rulesTabs.length === 3 && results.navCollapsedNarrow === true && results.closeVisibleNarrow === true && results.navExpandedWide === true && results.hikConnect && results.hikConnect.qr && results.hikConnect.serial && results.persistedDevices === 1 && results.sidePanelHidden === true && results.layoutFull === true && results.layoutFullExited === true && !results.error;
+  const pass = results.deviceAdded && results.cameras > 0 && results.livePlaying && results.mapImageWidth > 0 && results.mapHotspots === 1 && results.events > 0 && results.treeDraggable === 'true' && results.dropAssigned === true && results.talkBytesAtDevice > 0 && results.talkClosed === 1 && Array.isArray(results.rulesTabs) && results.rulesTabs.length === 3 && results.navCollapsedNarrow === true && results.closeVisibleNarrow === true && results.navExpandedWide === true && results.hikConnect && results.hikConnect.qr && results.hikConnect.serial && results.persistedDevices === 1 && results.sidePanelHidden === true && results.layoutFull === true && results.layoutFullExited === true && results.tileExpanded === true && results.zoomWindow === true && !results.error;
   log(pass ? 'E2E PASS' : 'E2E FAIL');
   app.isQuitting = true;
   if (ctx.shutdownAll) ctx.shutdownAll();

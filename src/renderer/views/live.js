@@ -27,13 +27,17 @@ let multiSel = new Set(); // selected tiles (Ctrl/Shift-click adds)
 let tree, ptz, sideLeft, sideRight, tourTimer = null, tourIdx = 0, currentViewId = null, pendingParams = null;
 let unsubs = [];
 
+// one cell per tile: a camera, a zoom window (index of its source tile + region) or null
+const cellsData = () => tiles.map((t) => (t.cameraId ? { cameraId: t.cameraId, stream: t.stream } : t.zoomOf ? { zoomOf: t.zoomOf.src.i, rect: { ...t.zoomOf.rect } } : null));
 const persistState = () => {
   // layout survives restarts; the open cameras only survive view switches within this session (see restore below)
   try {
     localStorage.setItem('live.state', JSON.stringify({ layoutId, customLayout, currentViewId }));
-    sessionStorage.setItem('live.cells', JSON.stringify(tiles.map((t) => (t.cameraId ? { cameraId: t.cameraId, stream: t.stream } : null))));
+    sessionStorage.setItem('live.cells', JSON.stringify(cellsData()));
   } catch (_) {}
 };
+// zoom windows come after their source cameras are assigned
+const restoreZooms = (cells) => cells.forEach((c, i) => { const src = c && c.zoomOf != null && tiles[c.zoomOf]; if (src && src.cameraId && tiles[i] && !tiles[i].cameraId) makeZoom(tiles[i], src, c.rect); });
 
 function layoutDef() { return customLayout || LAYOUTS[layoutId] || LAYOUTS['4']; }
 
@@ -62,25 +66,30 @@ function createTile(i) {
   tile.audioBtn = tb('mute', 'Audio on/off', () => setAudio(tile, !tile.audio));
   tile.recBtn = tb('record', 'Start/stop local recording', () => toggleRecord(tile));
   tile.zoomBtn = tb('zoom', 'Digital zoom (wheel to zoom, drag to pan)', () => toggleZoom(tile));
-  tile.ptzBtn = tb('ptz', 'PTZ control (opens panel; drag a box on video for 3D positioning on Hikvision)', () => { selectTile(i); togglePtzPanel(true); tile.ptz3d = !tile.ptz3d; tile.ptzBtn.classList.toggle('on', tile.ptz3d); });
+  tile.ptzBtn = tb('ptz', 'PTZ control (opens panel; drag a box on video for 3D positioning on Hikvision)', () => { selectTile(tile.i); togglePtzPanel(true); tile.ptz3d = !tile.ptz3d; tile.ptzBtn.classList.toggle('on', tile.ptz3d); });
   tile.talkBtn = tb('mic', 'Two-way audio: talk through the camera / NVR speaker (click to start, click again to stop)', () => toggleTalk(tile));
   tile.fishBtn = tb('fisheye', 'Fisheye dewarp: off → panorama → virtual PTZ (right-click for settings)', () => cycleDewarp(tile));
   tile.fishBtn.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); dewarpSettings(tile); });
   tools.append(
     tb('snapshot', 'Snapshot', () => snapshot(tile)),
-    tile.recBtn, tile.audioBtn, streamBtn, tile.zoomBtn, tile.ptzBtn, tile.talkBtn, tile.fishBtn,
-    tb('fullscreen', 'Maximize / restore (double-click)', () => toggleMaximize(i)),
+    tile.recBtn, tile.audioBtn, streamBtn, tile.zoomBtn, tb('zoomwin', 'Create zoom window (drag a box on the video)', () => startZoomPick(tile)), tile.ptzBtn, tile.talkBtn, tile.fishBtn,
+    tb('fullscreen', 'Maximize / restore (double-click)', () => toggleMaximize(tile.i)),
   );
-  tile.closeBtn = tb('close', 'Stop', () => clearTile(i), 'tile-close hidden');
+  tile.closeBtn = tb('close', 'Stop', () => clearTile(tile.i), 'tile-close hidden');
   t.append(tile.closeBtn);
 
-  t.addEventListener('click', (e) => selectTile(i, e.ctrlKey || e.metaKey || e.shiftKey));
-  t.addEventListener('dblclick', (e) => { if (e.target.closest('.tools')) return; if (tile.cameraId) toggleMaximize(i); });
+  t.addEventListener('click', (e) => selectTile(tile.i, e.ctrlKey || e.metaKey || e.shiftKey));
+  t.addEventListener('dblclick', (e) => { if (e.target.closest('.tools')) return; if (tile.cameraId) toggleMaximize(tile.i); });
   t.addEventListener('contextmenu', (e) => {
     e.preventDefault();
-    if (!multiSel.has(i)) selectTile(i);
+    if (!multiSel.has(tile.i)) selectTile(tile.i);
     const cam = tile.cameraId ? cameraById(tile.cameraId) : null;
     const sel = [...multiSel].filter((k) => tiles[k] && tiles[k].cameraId);
+    const r = rectOf(layoutMatrix(), tile), def = layoutDef();
+    const sizeItems = [
+      (r.r1 - r.r0 + 1 < def.rows || r.c1 - r.c0 + 1 < def.cols) && { label: 'Make bigger', icon: 'expand', onClick: () => resizeTile(tile, true) },
+      (r.r1 > r.r0 || r.c1 > r.c0) && { label: 'Make smaller', icon: 'shrink', onClick: () => resizeTile(tile, false) },
+    ];
     if (sel.length > 1) return contextMenu(e.clientX, e.clientY, [
       { label: `Stop ${sel.length} selected`, icon: 'close', onClick: () => sel.forEach(clearTile) },
       { label: 'Selected to main stream', icon: 'swap', onClick: () => sel.forEach((k) => setStream(tiles[k], 'main')) },
@@ -100,8 +109,11 @@ function createTile(i) {
       cam && deviceById(cam.deviceId) && deviceById(cam.deviceId).type === 'hikvision' && { label: 'Event rules (motion / line / intrusion)…', icon: 'alert', onClick: () => openRulesEditor(cam.id) },
       cam && { label: 'Open in playback', icon: 'playback', onClick: () => window.__navigate('playback', { cameraId: cam.id }) },
       cam && { label: 'Camera details', icon: 'info', onClick: () => showCameraInfo(cam) },
+      cam && { label: 'Create zoom window', icon: 'zoomwin', onClick: () => startZoomPick(tile) },
+      '-', ...sizeItems,
       cam && '-',
-      cam && { label: 'Stop', icon: 'close', onClick: () => clearTile(i) },
+      cam && { label: 'Stop', icon: 'close', onClick: () => clearTile(tile.i) },
+      tile.zoomOf && { label: 'Close zoom window', icon: 'close', onClick: () => clearTile(tile.i) },
       { label: 'Stop all', icon: 'stop', danger: true, onClick: () => stopAll() },
     ]);
   });
@@ -115,13 +127,13 @@ function createTile(i) {
     const devId = e.dataTransfer.getData(DT_DEVICE);
     const grp = e.dataTransfer.getData(DT_GROUP);
     const from = e.dataTransfer.getData('application/x-univms-tile');
-    if (camId) assign(i, camId);
-    else if (devId) fillFrom(i, state.cameras.filter((c) => c.deviceId === devId && !c.hidden).map((c) => c.id));
-    else if (grp) fillFrom(i, grp.split(',').filter(Boolean));
-    else if (from !== '') swap(Number(from), i);
+    if (camId) assign(tile.i, camId);
+    else if (devId) fillFrom(tile.i, state.cameras.filter((c) => c.deviceId === devId && !c.hidden).map((c) => c.id));
+    else if (grp) fillFrom(tile.i, grp.split(',').filter(Boolean));
+    else if (from !== '') swap(Number(from), tile.i);
   });
   t.draggable = true;
-  t.addEventListener('dragstart', (e) => { if (!tile.cameraId || tile.zoom) { e.preventDefault(); return; } e.dataTransfer.setData('application/x-univms-tile', String(i)); e.dataTransfer.effectAllowed = 'move'; });
+  t.addEventListener('dragstart', (e) => { if (!tile.cameraId || tile.zoom || drag || tile.zoomPick || tile.noDrag) { e.preventDefault(); return; } e.dataTransfer.setData('application/x-univms-tile', String(tile.i)); e.dataTransfer.effectAllowed = 'move'; });
 
   // digital zoom + 3D PTZ
   t.addEventListener('wheel', (e) => {
@@ -135,7 +147,11 @@ function createTile(i) {
   let drag = null;
   t.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 || e.target.closest('.tools')) return;
-    if (tile.zoom && tile.zoom.scale > 1) { drag = { x: e.clientX, y: e.clientY, ox: tile.zoom.x, oy: tile.zoom.y }; t.setPointerCapture(e.pointerId); }
+    if (tile.zoomPick && tile.cameraId) {
+      const r = t.getBoundingClientRect();
+      drag = { pick: true, x: e.clientX - r.left, y: e.clientY - r.top, rect: el('div', { class: 'ptz-rect' }), r };
+      t.append(drag.rect); t.setPointerCapture(e.pointerId);
+    } else if (tile.zoom && tile.zoom.scale > 1) { drag = { x: e.clientX, y: e.clientY, ox: tile.zoom.x, oy: tile.zoom.y }; t.setPointerCapture(e.pointerId); }
     else if (tile.ptz3d && tile.cameraId) {
       const r = t.getBoundingClientRect();
       drag = { ptz: true, x: e.clientX - r.left, y: e.clientY - r.top, rect: el('div', { class: 'ptz-rect' }), r };
@@ -144,7 +160,7 @@ function createTile(i) {
   });
   t.addEventListener('pointermove', (e) => {
     if (!drag) return;
-    if (drag.ptz) {
+    if (drag.ptz || drag.pick) {
       const x = e.clientX - drag.r.left, y = e.clientY - drag.r.top;
       Object.assign(drag.rect.style, { left: Math.min(x, drag.x) + 'px', top: Math.min(y, drag.y) + 'px', width: Math.abs(x - drag.x) + 'px', height: Math.abs(y - drag.y) + 'px' });
     } else {
@@ -153,7 +169,13 @@ function createTile(i) {
   });
   const endDrag = (e) => {
     if (!drag) return;
-    if (drag.ptz) {
+    if (drag.pick) {
+      const x = e.clientX - drag.r.left, y = e.clientY - drag.r.top, b = videoBox(tile);
+      drag.rect.remove(); stopZoomPick(tile);
+      let rect = { x: (Math.min(x, drag.x) - b.x) / b.w, y: (Math.min(y, drag.y) - b.y) / b.h, w: Math.abs(x - drag.x) / b.w, h: Math.abs(y - drag.y) / b.h };
+      if (rect.w < 0.03 || rect.h < 0.03) rect = { x: (drag.x - b.x) / b.w - 0.2, y: (drag.y - b.y) / b.h - 0.2, w: 0.4, h: 0.4 }; // a click: 40 % box around it
+      createZoomWindow(tile, clampRect(rect));
+    } else if (drag.ptz) {
       const x = e.clientX - drag.r.left, y = e.clientY - drag.r.top;
       drag.rect.remove();
       const sc = (v, max) => Math.max(0, Math.min(255, Math.round((v / max) * 255)));
@@ -200,6 +222,8 @@ export function assign(i, cameraId, stream) {
   if (!tile) return;
   const cam = cameraById(cameraId);
   if (!cam) { toast('Camera not found', 'err'); return; }
+  if (tile.zoomOf) clearZoom(tile);
+  if (tile.cameraId && tile.cameraId !== cameraId) closeZoomsOf(tile);
   if (tile.player) { stopRecordingIfAny(tile); tile.player.destroy(); state.playing.delete(tile.cameraId); }
   tile.cameraId = cameraId;
   tile.stream = stream || tile.stream || state.settings.defaultStream || 'sub';
@@ -304,6 +328,8 @@ function dewarpSettings(tile) {
 export function clearTile(i) {
   const tile = tiles[i];
   if (!tile) return;
+  if (tile.zoomOf) clearZoom(tile);
+  closeZoomsOf(tile);
   if (tile.talk) { tile.talk.stop().catch(() => {}); tile.talk = null; }
   setDewarp(tile, 'off');
   if (tile.player) { tile.player.destroy(); tile.player = null; }
@@ -386,6 +412,142 @@ function toggleMaximize(i) {
   renderGrid(false);
 }
 
+// ---------- tile size: make bigger / smaller ----------
+// The grid as a rows × cols matrix of tile objects (null = cell without a tile). Tiles span rectangles.
+function layoutMatrix() {
+  const def = layoutDef(), byName = new Map(tiles.map((t, k) => [areaName(k), t]));
+  return [...Array(def.rows)].map((_, r) => {
+    const row = def.areas ? def.areas[r].trim().split(/\s+/) : null;
+    return [...Array(def.cols)].map((_, c) => (row ? byName.get(row[c]) : tiles[r * def.cols + c]) || null);
+  });
+}
+function rectOf(m, t) {
+  const r = { r0: Infinity, c0: Infinity, r1: -1, c1: -1 };
+  m.forEach((row, y) => row.forEach((x, c) => { if (x === t) { r.r0 = Math.min(r.r0, y); r.c0 = Math.min(r.c0, c); r.r1 = Math.max(r.r1, y); r.c1 = Math.max(r.c1, c); } }));
+  return r;
+}
+// Use the matrix as the new (custom) layout. Tile objects move, so their players keep running. Displaced tiles with a
+// camera or zoom window take a free cell, else an empty tile's place, else a new row; free cells become empty tiles.
+function applyMatrix(m, displaced = [], keep = null) {
+  const cols = m[0].length;
+  for (const t of displaced) {
+    if (!t.cameraId && !t.zoomOf) continue;
+    let spot = null;
+    m.forEach((row, r) => row.forEach((x, c) => { if (!spot && !x) spot = [r, c]; }));
+    const empty = !spot && m.flat().find((x) => x && x !== keep && !x.cameraId && !x.zoomOf);
+    if (empty) { m.forEach((row) => row.forEach((x, c) => { if (x === empty) row[c] = t; })); continue; }
+    if (!spot) { m.push(Array(cols).fill(null)); spot = [m.length - 1, 0]; }
+    m[spot[0]][spot[1]] = t;
+  }
+  m.forEach((row) => row.forEach((x, c) => { if (!x) row[c] = createTile(0); }));
+  const order = [...new Set(m.flat())];
+  for (const t of tiles) if (!order.includes(t)) { if (t.player) t.player.destroy(); if (t.zoomOf) clearZoom(t); }
+  order.forEach((t, k) => { t.i = k; t.el.dataset.idx = k; });
+  tiles = order;
+  customLayout = { n: order.length, cols, rows: m.length, areas: m.map((row) => row.map((x) => areaName(x.i)).join(' ')) };
+  maximizedIdx = -1; multiSel = new Set(); selectedIdx = -1;
+  renderGrid(false);
+}
+/** Grow a tile by one cell right and down (left/up at the grid edge), or shrink it by one cell. */
+function resizeTile(t, grow) {
+  const m = layoutMatrix(), rows = m.length, cols = m[0].length, cur = rectOf(m, t), R = { ...cur };
+  if (grow) {
+    if (R.c1 - R.c0 + 1 < cols) { if (R.c1 + 1 < cols) R.c1++; else R.c0--; }
+    if (R.r1 - R.r0 + 1 < rows) { if (R.r1 + 1 < rows) R.r1++; else R.r0--; }
+  } else {
+    if (R.c1 > R.c0) R.c1--;
+    if (R.r1 > R.r0) R.r1--;
+  }
+  const displaced = new Set();
+  for (let r = R.r0; r <= R.r1; r++) for (let c = R.c0; c <= R.c1; c++) if (m[r][c] && m[r][c] !== t) displaced.add(m[r][c]);
+  m.forEach((row) => row.forEach((x, c) => { if (x === t || displaced.has(x)) row[c] = null; }));
+  for (let r = R.r0; r <= R.r1; r++) for (let c = R.c0; c <= R.c1; c++) m[r][c] = t;
+  applyMatrix(m, [...displaced], t);
+  selectTile(t.i);
+}
+
+// ---------- zoom windows (like DW): a tile showing a region of another tile's video; no second stream ----------
+const ZOOM_COLORS = ['#f5b014', '#3fd07a', '#4aa8ff', '#ff6b9a', '#b58cff', '#3fe0d8'];
+let zoomRaf = 0;
+const clampRect = (r) => { const w = Math.min(1, Math.max(0.02, r.w)), h = Math.min(1, Math.max(0.02, r.h)); return { x: Math.min(1 - w, Math.max(0, r.x)), y: Math.min(1 - h, Math.max(0, r.y)), w, h }; };
+// where the picture sits inside the tile (video uses object-fit: contain)
+function videoBox(tile) {
+  const v = tile.video, w = tile.el.clientWidth, h = tile.el.clientHeight, vw = v.videoWidth || 16, vh = v.videoHeight || 9, s = Math.min(w / vw, h / vh);
+  return { x: (w - vw * s) / 2, y: (h - vh * s) / 2, w: vw * s, h: vh * s };
+}
+function startZoomPick(tile) {
+  if (!tile.cameraId) return;
+  tile.zoomPick = true; tile.el.classList.add('zoom-pick');
+  toast('Drag a box on the video for the zoom window (Esc cancels)', 'info');
+}
+function stopZoomPick(tile) { tile.zoomPick = false; tile.el.classList.remove('zoom-pick'); }
+function createZoomWindow(src, rect) {
+  let target = tiles.find((t) => !t.cameraId && !t.zoomOf);
+  if (!target) { const m = layoutMatrix(); m.push(Array(m[0].length).fill(null)); applyMatrix(m); target = tiles.find((t) => !t.cameraId && !t.zoomOf); }
+  makeZoom(target, src, rect);
+  selectTile(target.i);
+}
+function makeZoom(tile, src, rect) {
+  const used = tiles.filter((t) => t.zoomOf).map((t) => t.zoomOf.color);
+  const color = ZOOM_COLORS.find((c) => !used.includes(c)) || ZOOM_COLORS[used.length % ZOOM_COLORS.length];
+  const canvas = el('canvas', { class: 'zoomwin' });
+  const frame = el('div', { class: 'zoom-frame', title: 'Zoom window area (drag to move)' });
+  const z = tile.zoomOf = { src, rect: clampRect(rect), color, canvas, frame };
+  tile.el.insertBefore(canvas, tile.nameEl);
+  src.el.insertBefore(frame, src.nameEl); // before name/tools so those stay on top
+  tile.el.style.setProperty('--zc', color); frame.style.setProperty('--zc', color);
+  tile.el.classList.add('zoom-tile');
+  tile.video.classList.add('hidden'); tile.hint.classList.add('hidden'); tile.hintInfo.classList.add('hidden');
+  tile.label.textContent = `${(cameraById(src.cameraId) || {}).name || 'Camera'} (zoom)`;
+  tile.nameEl.classList.remove('hidden'); tile.closeBtn.classList.remove('hidden');
+  // move the area: drag the frame on the source, or drag inside the zoom window; wheel in the zoom window = zoom
+  const drag = (elm, sign, scale) => elm.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    e.stopPropagation(); elm.setPointerCapture(e.pointerId); (sign > 0 ? src : tile).noDrag = true;
+    const sx = e.clientX, sy = e.clientY, r0 = { ...z.rect }, k = scale();
+    const move = (ev) => { z.rect = clampRect({ ...r0, x: r0.x + sign * (ev.clientX - sx) * k.x, y: r0.y + sign * (ev.clientY - sy) * k.y }); };
+    const up = () => { elm.removeEventListener('pointermove', move); elm.removeEventListener('pointerup', up); src.noDrag = tile.noDrag = false; persistState(); };
+    elm.addEventListener('pointermove', move); elm.addEventListener('pointerup', up);
+  });
+  drag(frame, 1, () => { const b = videoBox(src); return { x: 1 / b.w, y: 1 / b.h }; });
+  drag(canvas, -1, () => ({ x: z.rect.w / (z.dispW || canvas.clientWidth), y: z.rect.h / (z.dispH || canvas.clientHeight) }));
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const f = e.deltaY < 0 ? 1 / 1.2 : 1.2, r = z.rect, cx = r.x + r.w / 2, cy = r.y + r.h / 2, w = r.w * f, h = r.h * f;
+    z.rect = clampRect({ x: cx - w / 2, y: cy - h / 2, w, h }); persistState();
+  }, { passive: false });
+  canvas.addEventListener('dblclick', (e) => e.stopPropagation());
+  if (!zoomRaf) zoomRaf = requestAnimationFrame(drawZooms);
+  persistState();
+}
+function clearZoom(tile) {
+  const z = tile.zoomOf; if (!z) return;
+  z.canvas.remove(); z.frame.remove();
+  tile.zoomOf = null; tile.el.classList.remove('zoom-tile'); tile.el.style.removeProperty('--zc');
+  tile.video.classList.remove('hidden'); tile.hint.classList.remove('hidden'); tile.hintInfo.classList.remove('hidden');
+  tile.nameEl.classList.add('hidden'); tile.closeBtn.classList.add('hidden'); tile.label.textContent = '';
+  persistState();
+}
+function closeZoomsOf(src) { for (const t of tiles) if (t.zoomOf && t.zoomOf.src === src) clearZoom(t); }
+function drawZooms() {
+  zoomRaf = 0;
+  const zs = tiles.filter((t) => t.zoomOf);
+  for (const t of zs) {
+    const { src, rect: r, canvas: c, frame } = t.zoomOf, v = src.video;
+    const b = videoBox(src);
+    Object.assign(frame.style, { left: b.x + r.x * b.w + 'px', top: b.y + r.y * b.h + 'px', width: r.w * b.w + 'px', height: r.h * b.h + 'px' });
+    const w = Math.round(c.clientWidth * devicePixelRatio), h = Math.round(c.clientHeight * devicePixelRatio);
+    if (!w || !h || v.readyState < 2 || !v.videoWidth) continue;
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    const sw = r.w * v.videoWidth, sh = r.h * v.videoHeight, s = Math.min(w / sw, h / sh), dw = sw * s, dh = sh * s;
+    t.zoomOf.dispW = dw / devicePixelRatio; t.zoomOf.dispH = dh / devicePixelRatio;
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(v, r.x * v.videoWidth, r.y * v.videoHeight, sw, sh, (w - dw) / 2, (h - dh) / 2, dw, dh);
+  }
+  if (zs.length) zoomRaf = requestAnimationFrame(drawZooms);
+}
+
 // ---------- layout ----------
 function renderGrid(rebuild = true) {
   const def = layoutDef();
@@ -394,7 +556,8 @@ function renderGrid(rebuild = true) {
     const prev = tiles;
     tiles = [];
     for (let i = 0; i < def.n; i++) tiles.push(prev[i] || createTile(i));
-    for (let i = def.n; i < prev.length; i++) { if (prev[i].player) prev[i].player.destroy(); if (prev[i].cameraId) state.playing.delete(prev[i].cameraId); stopRecordingIfAny(prev[i]); }
+    for (let i = def.n; i < prev.length; i++) { if (prev[i].zoomOf) clearZoom(prev[i]); if (prev[i].player) prev[i].player.destroy(); if (prev[i].cameraId) state.playing.delete(prev[i].cameraId); stopRecordingIfAny(prev[i]); }
+    tiles.forEach((t) => { if (t.zoomOf && !tiles.includes(t.zoomOf.src)) clearZoom(t); });
     if (maximizedIdx >= def.n) maximizedIdx = -1;
     if (selectedIdx >= def.n) { selectedIdx = -1; if (ptz) ptz.setCamera(null); }
     multiSel = new Set([...multiSel].filter((k) => k < def.n));
@@ -426,7 +589,7 @@ export function stopAll() { tiles.forEach((_, i) => clearTile(i)); }
 
 // ---------- saved views ----------
 function currentViewData() {
-  return { layoutId: customLayout ? null : layoutId, custom: customLayout, cells: tiles.map((t) => (t.cameraId ? { cameraId: t.cameraId, stream: t.stream } : null)) };
+  return { layoutId: customLayout ? null : layoutId, custom: customLayout, cells: cellsData() };
 }
 async function saveView(asNew = false) {
   const existing = !asNew && currentViewId ? state.views.find((v) => v.id === currentViewId) : null;
@@ -442,11 +605,13 @@ function loadView(v, { keepTour = false } = {}) {
   if (!keepTour) stopTour(false);
   // keep tiles that already show the same camera and stream: restarting them only costs time (slow relays especially)
   const cells = v.cells || [];
+  tiles.forEach((t) => { if (t.zoomOf) clearZoom(t); });
   tiles.forEach((t, i) => { const c = cells[i]; if (t.cameraId && !(c && c.cameraId === t.cameraId && (c.stream || t.stream) === t.stream)) clearTile(i); });
   if (v.custom) { customLayout = v.custom; } else { customLayout = null; layoutId = v.layoutId || '4'; }
   maximizedIdx = -1;
   renderGrid(true);
   cells.forEach((c, i) => { if (c && c.cameraId && cameraById(c.cameraId) && !(tiles[i] && tiles[i].cameraId === c.cameraId && tiles[i].player)) assign(i, c.cameraId, c.stream); });
+  restoreZooms(cells);
   if (tree) tree.refresh();
   currentViewId = v.id;
   setStatus(`View: ${v.name}`);
@@ -579,6 +744,7 @@ export function mount(container, p = {}) {
       const cells = JSON.parse(sessionStorage.getItem('live.cells') || '[]'); // read BEFORE renderGrid: it persists the (still empty) tiles
       renderGrid(true);
       cells.forEach((c, i) => { if (c && c.cameraId && cameraById(c.cameraId)) assign(i, c.cameraId, c.stream); });
+      restoreZooms(cells);
       restored = true;
     }
   } catch (_) {}
@@ -596,6 +762,7 @@ export function mount(container, p = {}) {
   const onKey = (e) => {
     if (e.target.matches('input, textarea, select')) return;
     if (e.key === 'Escape' && maximizedIdx >= 0) toggleMaximize(maximizedIdx);
+    else if (e.key === 'Escape' && tiles.some((t) => t.zoomPick)) tiles.forEach(stopZoomPick);
     else if (e.key === 'Escape' && document.body.classList.contains('layout-full')) toggleLayoutFull(false);
     if (e.key === 'Delete' && selectedIdx >= 0) [...multiSel].forEach(clearTile);
   };
@@ -609,6 +776,7 @@ export function mount(container, p = {}) {
 
 export function unmount() {
   stopTour(false);
+  cancelAnimationFrame(zoomRaf); zoomRaf = 0;
   if (document.body.classList.contains('layout-full')) toggleLayoutFull(false);
   if (tree) { tree.destroy(); tree = null; }
   for (const t of tiles) { if (t.talk) t.talk.stop().catch(() => {}); if (t.dewarp) t.dewarp.stop(); if (t.player) t.player.destroy(); stopRecordingIfAny(t); }

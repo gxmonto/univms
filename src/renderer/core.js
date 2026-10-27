@@ -113,8 +113,8 @@ export const promptText = (title, label, value = '', { password = false } = {}) 
 export function contextMenu(x, y, items) {
   document.querySelectorAll('.ctx-menu').forEach((m) => m.remove());
   const menu = el('div', { class: 'ctx-menu', style: { left: x + 'px', top: y + 'px' } });
-  for (const it of items) {
-    if (!it) continue;
+  const list = items.filter(Boolean).filter((it, k, a) => it !== '-' || (k > 0 && k < a.length - 1 && a[k - 1] !== '-')); // no leading/trailing/double separators
+  for (const it of list) {
     if (it === '-') { menu.append(el('div', { class: 'sep' })); continue; }
     menu.append(el('button', { class: it.danger ? 'danger' : '', disabled: it.disabled, onClick: () => { menu.remove(); it.onClick && it.onClick(); } }, it.icon ? svg(it.icon) : null, it.label));
   }
