@@ -148,6 +148,7 @@ async function boot() {
       ? '<svg viewBox="0 0 10 10"><path d="M3 3V1.5h5.5V7H7" fill="none" stroke="currentColor" stroke-width="1"/><rect x="1.5" y="3" width="5.5" height="5.5" fill="none" stroke="currentColor" stroke-width="1"/></svg>'
       : '<svg viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1"/></svg>';
     document.body.classList.toggle('fullscreen', !!st.fullscreen);
+  if (st.event === 'leave-full-screen') document.body.classList.remove('layout-full'); // F11 / OS left fullscreen: bring the chrome back
   };
   on('window:state', applyWinState);
   api('window:isMaximized').then((m) => applyWinState({ maximized: m, fullscreen: false })).catch(() => {});

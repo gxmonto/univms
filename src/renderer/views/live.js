@@ -24,7 +24,7 @@ const LAYOUTS = {
 
 let root, gridEl, tiles = [], layoutId = '4', customLayout = null, selectedIdx = -1, maximizedIdx = -1;
 let multiSel = new Set(); // selected tiles (Ctrl/Shift-click adds)
-let tree, ptz, sideRight, tourTimer = null, tourIdx = 0, currentViewId = null, pendingParams = null;
+let tree, ptz, sideLeft, sideRight, tourTimer = null, tourIdx = 0, currentViewId = null, pendingParams = null;
 let unsubs = [];
 
 const persistState = () => {
@@ -506,20 +506,36 @@ function togglePtzPanel(show) {
   localStorage.setItem('live.ptzPanel', on ? '1' : '0');
   document.getElementById('btn-ptz-panel').classList.toggle('active', on);
 }
+function toggleSidePanel(show) {
+  const on = show === undefined ? sideLeft.classList.contains('hidden') : show;
+  sideLeft.classList.toggle('hidden', !on);
+  localStorage.setItem('live.sidePanel', on ? '1' : '0');
+  document.getElementById('btn-side-panel').classList.toggle('active', on);
+}
+// Layout fullscreen: only the grid on screen (window fullscreen + app chrome hidden). CSS, not the DOM Fullscreen API,
+// so context menus, modals and toasts (outside the grid) still show. Leaving window fullscreen drops it too (app.js).
+function toggleLayoutFull(on = !document.body.classList.contains('layout-full')) {
+  document.body.classList.toggle('layout-full', on);
+  api('window:fullscreen', on);
+}
 
 // ---------- mount ----------
 export function mount(container, p = {}) {
   pendingParams = p;
-  const side = el('aside', { class: 'side' });
+  const side = sideLeft = el('aside', { class: 'side' });
+  if (localStorage.getItem('live.sidePanel') === '0') side.classList.add('hidden');
   const content = el('section', { class: 'content' });
   gridEl = el('div', { class: 'vgrid' });
-  const gridWrap = el('div', { class: 'grid-wrap' }, gridEl);
+  const gridWrap = el('div', { class: 'grid-wrap' }, gridEl,
+    el('button', { class: 'lf-exit', title: 'Exit fullscreen (Esc)', onClick: () => toggleLayoutFull(false) }, svg('close')));
 
   const layoutBtns = el('div', { class: 'layout-btns' });
   for (const k of Object.keys(LAYOUTS)) layoutBtns.append(el('button', { dataset: { layout: k }, title: `${k} windows`, onClick: () => setLayout(k) }, k));
   const cols = el('input', { type: 'number', min: 1, max: 12, value: 3, style: { width: '46px' }, title: 'Columns' });
   const rows = el('input', { type: 'number', min: 1, max: 12, value: 2, style: { width: '46px' }, title: 'Rows' });
   const bottom = el('div', { class: 'toolbar bottom' },
+    el('button', { id: 'btn-side-panel', class: 'btn sm' + (side.classList.contains('hidden') ? '' : ' active'), title: 'Show / hide the camera panel', onClick: () => toggleSidePanel() }, svg('sidebar')),
+    el('div', { class: 'sep' }),
     layoutBtns, el('div', { class: 'sep' }),
     el('span', { class: 'dim small' }, 'Custom'), cols, el('span', { class: 'dim' }, '×'), rows, btn('Apply', { cls: 'sm' }, () => setCustomLayout(Number(cols.value) || 1, Number(rows.value) || 1)),
     el('div', { class: 'sep' }),
@@ -529,7 +545,7 @@ export function mount(container, p = {}) {
     el('div', { class: 'spacer' }),
     el('button', { id: 'btn-ptz-panel', class: 'btn sm', title: 'PTZ panel', onClick: () => togglePtzPanel() }, svg('ptz'), 'PTZ'),
     btn('Stop all', { cls: 'sm', icon: 'stop' }, stopAll),
-    btn('', { cls: 'sm', icon: 'fullscreen', title: 'Fullscreen' }, () => api('window:fullscreen')),
+    btn('', { cls: 'sm', icon: 'fullscreen', title: 'Fullscreen layout (Esc to exit)' }, () => toggleLayoutFull(true)),
   );
   content.append(gridWrap, bottom);
   sideRight = el('aside', { class: 'side right' }, el('div', { class: 'side-head' }, svg('ptz'), 'PTZ control'));
@@ -580,6 +596,7 @@ export function mount(container, p = {}) {
   const onKey = (e) => {
     if (e.target.matches('input, textarea, select')) return;
     if (e.key === 'Escape' && maximizedIdx >= 0) toggleMaximize(maximizedIdx);
+    else if (e.key === 'Escape' && document.body.classList.contains('layout-full')) toggleLayoutFull(false);
     if (e.key === 'Delete' && selectedIdx >= 0) [...multiSel].forEach(clearTile);
   };
   document.addEventListener('keydown', onKey);
@@ -592,6 +609,7 @@ export function mount(container, p = {}) {
 
 export function unmount() {
   stopTour(false);
+  if (document.body.classList.contains('layout-full')) toggleLayoutFull(false);
   if (tree) { tree.destroy(); tree = null; }
   for (const t of tiles) { if (t.talk) t.talk.stop().catch(() => {}); if (t.dewarp) t.dewarp.stop(); if (t.player) t.player.destroy(); stopRecordingIfAny(t); }
   state.playing.clear();

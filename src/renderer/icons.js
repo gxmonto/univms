@@ -20,6 +20,7 @@ export const I = {
   ptz: wrap('<circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>'),
   zoom: wrap('<circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35M11 8v6M8 11h6"/>'),
   fullscreen: wrap('<path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>'),
+  sidebar: wrap('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>'),
   close: wrap('<path d="M18 6L6 18M6 6l12 12"/>'),
   play: wrap('<path d="M5 3l14 9-14 9V3z" fill="currentColor" stroke="none"/>'),
   pause: wrap('<rect x="6" y="4" width="4" height="16" fill="currentColor" stroke="none"/><rect x="14" y="4" width="4" height="16" fill="currentColor" stroke="none"/>'),

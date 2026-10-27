@@ -100,7 +100,7 @@ if (!gotLock && !SMOKE && !E2E) {
     });
     const wc = win.webContents;
     win.on('closed', () => { windows.delete(win); streams.stopAllFor(wc); });
-    for (const ev of ['maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen']) win.on(ev, () => { if (!wc.isDestroyed()) wc.send('window:state', { maximized: win.isMaximized(), fullscreen: win.isFullScreen() }); });
+    for (const ev of ['maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen']) win.on(ev, () => { if (!wc.isDestroyed()) wc.send('window:state', { event: ev, maximized: win.isMaximized(), fullscreen: win.isFullScreen() }); });
     // reload / renderer crash: the old renderer's streams have no consumer any more
     wc.on('did-start-navigation', (e) => { if (e.isMainFrame !== false) streams.stopAllFor(wc); });
     win.webContents.on('will-navigate', (e) => e.preventDefault());

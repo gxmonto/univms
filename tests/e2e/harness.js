@@ -148,6 +148,16 @@ async function run(ctx, win, app) {
     await js(`window.__navigate('live')`); await sleep(6000); await shot('08-live-restored');
     const live2 = await js(`(() => { const v = document.querySelector('.tile video'); return v ? v.videoWidth : 0; })()`);
     results.liveRestoredWidth = live2;
+    // camera panel toggle + fullscreen layout (grid only, Esc leaves)
+    await js(`document.getElementById('btn-side-panel').click()`); await sleep(300);
+    results.sidePanelHidden = await js(`document.querySelector('#view .side').classList.contains('hidden')`);
+    await shot('09-side-hidden');
+    await js(`document.getElementById('btn-side-panel').click()`); await sleep(300);
+    await js(`document.querySelector('[data-tip^="Fullscreen layout"], [title^="Fullscreen layout"]').click()`); await sleep(1200);
+    results.layoutFull = await js(`document.body.classList.contains('layout-full') && getComputedStyle(document.getElementById('topbar')).display === 'none'`);
+    await shot('10-layout-full');
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' }); await sleep(1200);
+    results.layoutFullExited = await js(`!document.body.classList.contains('layout-full')`) && !win.isFullScreen();
   } catch (e) {
     results.error = e.message;
   } finally {
@@ -155,7 +165,7 @@ async function run(ctx, win, app) {
   }
   log('E2E RESULTS', results);
   fs.writeFileSync(path.join(outDir, 'results.json'), JSON.stringify(results, null, 2));
-  const pass = results.deviceAdded && results.cameras > 0 && results.livePlaying && results.mapImageWidth > 0 && results.mapHotspots === 1 && results.events > 0 && results.treeDraggable === 'true' && results.dropAssigned === true && results.talkBytesAtDevice > 0 && results.talkClosed === 1 && Array.isArray(results.rulesTabs) && results.rulesTabs.length === 3 && results.navCollapsedNarrow === true && results.closeVisibleNarrow === true && results.navExpandedWide === true && results.hikConnect && results.hikConnect.qr && results.hikConnect.serial && results.persistedDevices === 1 && !results.error;
+  const pass = results.deviceAdded && results.cameras > 0 && results.livePlaying && results.mapImageWidth > 0 && results.mapHotspots === 1 && results.events > 0 && results.treeDraggable === 'true' && results.dropAssigned === true && results.talkBytesAtDevice > 0 && results.talkClosed === 1 && Array.isArray(results.rulesTabs) && results.rulesTabs.length === 3 && results.navCollapsedNarrow === true && results.closeVisibleNarrow === true && results.navExpandedWide === true && results.hikConnect && results.hikConnect.qr && results.hikConnect.serial && results.persistedDevices === 1 && results.sidePanelHidden === true && results.layoutFull === true && results.layoutFullExited === true && !results.error;
   log(pass ? 'E2E PASS' : 'E2E FAIL');
   app.isQuitting = true;
   if (ctx.shutdownAll) ctx.shutdownAll();
