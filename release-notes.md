@@ -1,3 +1,3 @@
-- The installers now list Gustavo Montoya as publisher and the GitHub project as homepage.
-- Main View: a button at the bottom left hides or shows the camera panel (remembered).
-- Main View: the fullscreen button now shows only the camera grid, without menus or toolbars. Press Esc or the button at the top to leave.
+- The installers now list Mike Borden as publisher.
+- Main View: right-click a tile → Make bigger / Make smaller. A bigger tile takes the space of its neighbours; their cameras move to free tiles (or a new row) and keep playing.
+- Main View: zoom windows. Click the zoom window button on a tile (or right-click → Create zoom window) and drag a box on the video: a new tile shows that area enlarged. Drag the coloured frame on the camera, or drag and scroll inside the zoom window, to change the area. Uses no extra stream; saved with layouts.
