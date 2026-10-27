@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The installers now list Mike Borden as publisher.
+
 ## 1.4.17 - 2026-10-27
 
 - The installers now list Gustavo Montoya as publisher and the GitHub project as homepage.

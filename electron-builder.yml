@@ -1,6 +1,6 @@
 appId: com.sightwatch.univms
 productName: UniVMS
-copyright: Copyright © 2026 Gustavo Montoya
+copyright: Copyright © 2026 Mike Borden
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 
 directories:
@@ -72,7 +72,7 @@ linux:
     UniVMS is a desktop video management client for Hikvision NVRs/DVRs/IP cameras
     (ISAPI) and Digital Watchdog DW Spectrum servers. Live view grids, remote playback,
     PTZ, event center, e-maps, local recording and device maintenance.
-  maintainer: Gustavo Montoya <tavoxmontoya@hotmail.com>
+  maintainer: Mike Borden <mike@sightwatch.com>
   desktop:
     entry:
       Name: UniVMS

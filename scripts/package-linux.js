@@ -93,7 +93,7 @@ const config = {
   priority: 'optional',
   maintainer: pkg.author,
   description: pkg.description,
-  vendor: 'Gustavo Montoya',
+  vendor: 'Mike Borden',
   homepage: pkg.homepage || 'https://github.com/gxmonto/univms',
   license: pkg.license,
   depends: ['libgtk-3-0', 'libnotify4', 'libnss3', 'libxss1', 'libxtst6', 'xdg-utils', 'libatspi2.0-0', 'libuuid1', 'libsecret-1-0'],
