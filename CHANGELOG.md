@@ -2,10 +2,11 @@
 
 ## Unreleased
 
+## 1.4.17 - 2026-10-27
+
 - The installers now list Gustavo Montoya as publisher and the GitHub project as homepage.
 - Main View: a button at the bottom left hides or shows the camera panel (remembered).
 - Main View: the fullscreen button now shows only the camera grid, without menus or toolbars. Press Esc or the button at the top to leave.
-
 ## 1.4.16 - 2026-10-23
 
 - Reolink via UID: smooth video. Cameras behind the Reolink relay played too fast and kept freezing and jumping; they now play at their real speed with a steady picture, about 3 seconds behind live.
