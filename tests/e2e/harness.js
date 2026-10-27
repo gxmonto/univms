@@ -177,6 +177,26 @@ async function run(ctx, win, app) {
     results.zoomWindow = await js(`(() => { const c = document.querySelector('.tile.zoom-tile canvas.zoomwin'), f = document.querySelector('.zoom-frame'); if (!c || !f || !c.width) return false;
       const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let lit = 0; for (let k = 0; k < d.length; k += 400) if (d[k] + d[k + 1] + d[k + 2] > 60) lit++; return lit > 50; })()`);
     await shot('12-zoom-window');
+    // move the zoom area: drag its frame on the camera
+    const fr = await js(`(() => { const r = document.querySelector('.zoom-frame').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), left: r.left }; })()`);
+    win.webContents.sendInputEvent({ type: 'mouseDown', x: fr.x, y: fr.y, button: 'left', clickCount: 1 });
+    for (let k = 1; k <= 6; k++) { win.webContents.sendInputEvent({ type: 'mouseMove', x: fr.x + 10 * k, y: fr.y + 5 * k, button: 'left' }); await sleep(50); }
+    win.webContents.sendInputEvent({ type: 'mouseUp', x: fr.x + 60, y: fr.y + 30, button: 'left', clickCount: 1 });
+    await sleep(500);
+    results.zoomAreaMoved = await js(`document.querySelector('.zoom-frame').getBoundingClientRect().left - ${fr.left} > 40`);
+    // move the zoom window itself to another slot (tile drop), it keeps drawing
+    results.zoomTileMoved = await js(`(async () => {
+      const z = document.querySelector('.tile.zoom-tile'), from = z.dataset.idx;
+      const ds = new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() }); z.dispatchEvent(ds);
+      if (ds.defaultPrevented) return 'dragstart blocked';
+      const target = [...document.querySelectorAll('.tile')].find((t) => t !== z && !t.classList.contains('zoom-tile') && t.dataset.idx !== '0');
+      const dt = new DataTransfer(); dt.setData('application/x-univms-tile', from);
+      target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+      await new Promise((r) => setTimeout(r, 500));
+      const z2 = document.querySelector('.tile.zoom-tile');
+      return z2 === z && z2.dataset.idx !== from && z2.querySelector('canvas.zoomwin').width > 0;
+    })()`);
+    await shot('13-zoom-moved');
   } catch (e) {
     results.error = e.message;
   } finally {
@@ -184,7 +204,7 @@ async function run(ctx, win, app) {
   }
   log('E2E RESULTS', results);
   fs.writeFileSync(path.join(outDir, 'results.json'), JSON.stringify(results, null, 2));
-  const pass = results.deviceAdded && results.cameras > 0 && results.livePlaying && results.mapImageWidth > 0 && results.mapHotspots === 1 && results.events > 0 && results.treeDraggable === 'true' && results.dropAssigned === true && results.talkBytesAtDevice > 0 && results.talkClosed === 1 && Array.isArray(results.rulesTabs) && results.rulesTabs.length === 3 && results.navCollapsedNarrow === true && results.closeVisibleNarrow === true && results.navExpandedWide === true && results.hikConnect && results.hikConnect.qr && results.hikConnect.serial && results.persistedDevices === 1 && results.sidePanelHidden === true && results.layoutFull === true && results.layoutFullExited === true && results.tileExpanded === true && results.zoomWindow === true && !results.error;
+  const pass = results.deviceAdded && results.cameras > 0 && results.livePlaying && results.mapImageWidth > 0 && results.mapHotspots === 1 && results.events > 0 && results.treeDraggable === 'true' && results.dropAssigned === true && results.talkBytesAtDevice > 0 && results.talkClosed === 1 && Array.isArray(results.rulesTabs) && results.rulesTabs.length === 3 && results.navCollapsedNarrow === true && results.closeVisibleNarrow === true && results.navExpandedWide === true && results.hikConnect && results.hikConnect.qr && results.hikConnect.serial && results.persistedDevices === 1 && results.sidePanelHidden === true && results.layoutFull === true && results.layoutFullExited === true && results.tileExpanded === true && results.zoomWindow === true && results.zoomAreaMoved === true && results.zoomTileMoved === true && !results.error;
   log(pass ? 'E2E PASS' : 'E2E FAIL');
   app.isQuitting = true;
   if (ctx.shutdownAll) ctx.shutdownAll();

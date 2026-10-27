@@ -233,8 +233,7 @@ body.layout-full .lf-exit { display: inline-flex; }
 .tile.zoomed video { cursor: move; }
 /* zoom windows: --zc = the window's colour, shared by its frame on the source tile */
 .tile.zoom-tile { border-color: var(--zc); }
-.tile canvas.zoomwin { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; }
-.tile canvas.zoomwin:active { cursor: grabbing; }
+.tile canvas.zoomwin { position: absolute; inset: 0; width: 100%; height: 100%; }
 .tile .zoom-frame { position: absolute; border: 2px solid var(--zc); box-sizing: border-box; cursor: move; box-shadow: 0 0 0 1px rgba(0,0,0,.5); }
 .tile.zoom-pick, .tile.zoom-pick video { cursor: crosshair; }
 .tile .ptz-rect { position: absolute; border: 1px dashed var(--accent); background: rgba(47,143,255,.15); pointer-events: none; }

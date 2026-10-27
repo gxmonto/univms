@@ -110,7 +110,9 @@ class ReolinkUidDevice {
       if (from >= stopAt) return null;
       const to = Math.min(stopAt, from + (from === startMs ? FIRST_CHUNK_MS : CHUNK_MS));
       const args = { channel: ch, stream: 'sub', startMs: from, endMs: to, file: path.join(dir, `c${n++}.mp4`) };
-      const file = rsdk.call('download', dev, args).catch(() => (stopped ? Promise.reject(new Error('stopped')) : rsdk.call('download', dev, args))); // one retry: relay hiccups
+      // two retries 2 s apart: relay hiccups, and code -40102 right after a previous download on the channel was stopped
+      const dl = (tries) => rsdk.call('download', dev, args).catch((e) => (stopped ? Promise.reject(new Error('stopped')) : tries ? new Promise((r) => setTimeout(r, 2000)).then(() => dl(tries - 1)) : Promise.reject(e)));
+      const file = dl(2);
       file.catch(() => {}); // a prefetched chunk may fail after a stop; the loop awaits it when needed
       return { from, to, file };
     };

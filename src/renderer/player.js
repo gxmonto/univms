@@ -174,8 +174,11 @@ export class Player {
     // opts.liveDelay: cushion (s) for bursty sources (Reolink relay: all cameras pause together for 1–5 s); the tile stays
     // that far behind live and only drifts the speed a little, instead of freezing at the edge and rushing at 1.25×
     const cushion = this.opts.liveDelay || 0;
-    if (!v.seeking && (v.currentTime < start || (this.opts.kind === 'live' && lag > 10 + cushion))) v.currentTime = Math.max(start, end - 0.5 - cushion);
-    else if (this.opts.kind === 'live') {
+    if (this.opts.kind === 'playback') {
+      // playback: only skip a gap (position outside the buffer) to the next buffered range; never jump to the newest data
+      if (!v.seeking) for (let i = 0; i < b.length; i++) if (b.end(i) > v.currentTime) { if (v.currentTime < b.start(i)) v.currentTime = b.start(i); break; }
+    } else if (!v.seeking && (v.currentTime < start || lag > 10 + cushion)) v.currentTime = Math.max(start, end - 0.5 - cushion);
+    else {
       const rate = cushion ? (lag < cushion - 1.5 ? 0.95 : lag > cushion + 1.5 ? 1.05 : 1) : (lag > 1.5 ? 1.25 : 1);
       if (v.playbackRate !== rate) v.playbackRate = rate;
     }
@@ -208,8 +211,10 @@ export class Player {
     this.trim(false);
     if (this.statusText === 'playing') this.opts.onStatus && this.opts.onStatus('playing', this.detailText());
     if (this.opts.onTime && this.opts.kind === 'playback' && this.opts.startMs) this.opts.onTime(this.opts.startMs + this.video.currentTime * 1000);
-    // stall detection
-    if (!this.stopped && this.statusText === 'playing' && this.bitrate === 0 && !this._userPaused) {
+    // stall detection: no new data AND nothing left to play (sources that send ahead, e.g. Reolink UID playback, pause
+    // their download for minutes while the buffer plays)
+    const b = this.video.buffered, ahead = b.length ? b.end(b.length - 1) - this.video.currentTime : 0;
+    if (!this.stopped && this.statusText === 'playing' && this.bitrate === 0 && ahead < 1 && !this._userPaused) {
       this._stall = (this._stall || 0) + 1;
       if (this._stall >= (this.opts.stallSeconds || 12)) {
         this._stall = 0;

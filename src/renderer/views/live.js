@@ -133,7 +133,7 @@ function createTile(i) {
     else if (from !== '') swap(Number(from), tile.i);
   });
   t.draggable = true;
-  t.addEventListener('dragstart', (e) => { if (!tile.cameraId || tile.zoom || drag || tile.zoomPick || tile.noDrag) { e.preventDefault(); return; } e.dataTransfer.setData('application/x-univms-tile', String(tile.i)); e.dataTransfer.effectAllowed = 'move'; });
+  t.addEventListener('dragstart', (e) => { if ((!tile.cameraId && !tile.zoomOf) || tile.zoom || drag || tile.zoomPick || tile.noDrag) { e.preventDefault(); return; } e.dataTransfer.setData('application/x-univms-tile', String(tile.i)); e.dataTransfer.effectAllowed = 'move'; });
 
   // digital zoom + 3D PTZ
   t.addEventListener('wheel', (e) => {
@@ -357,12 +357,14 @@ function fillFrom(start, cameraIds) {
   }
 }
 
+// move tile a to slot b: the tile objects swap places, so cameras and zoom windows keep running (no reconnect)
 function swap(a, b) {
   if (a === b || !tiles[a] || !tiles[b]) return;
-  const A = { cameraId: tiles[a].cameraId, stream: tiles[a].stream }, B = { cameraId: tiles[b].cameraId, stream: tiles[b].stream };
-  clearTile(a); clearTile(b);
-  if (B.cameraId) assign(a, B.cameraId, B.stream);
-  if (A.cameraId) assign(b, A.cameraId, A.stream);
+  [tiles[a], tiles[b]] = [tiles[b], tiles[a]];
+  for (const k of [a, b]) { tiles[k].i = k; tiles[k].el.dataset.idx = k; }
+  if (maximizedIdx === a || maximizedIdx === b) maximizedIdx = -1;
+  renderGrid(false);
+  selectTile(b);
 }
 
 function setStream(tile, stream) {
@@ -500,23 +502,23 @@ function makeZoom(tile, src, rect) {
   tile.video.classList.add('hidden'); tile.hint.classList.add('hidden'); tile.hintInfo.classList.add('hidden');
   tile.label.textContent = `${(cameraById(src.cameraId) || {}).name || 'Camera'} (zoom)`;
   tile.nameEl.classList.remove('hidden'); tile.closeBtn.classList.remove('hidden');
-  // move the area: drag the frame on the source, or drag inside the zoom window; wheel in the zoom window = zoom
-  const drag = (elm, sign, scale) => elm.addEventListener('pointerdown', (e) => {
+  // like DW: the zoom tile itself drags to another slot (normal tile drag); the area moves by dragging its frame on the
+  // source; the wheel on the frame or in the zoom tile makes the area smaller/bigger
+  frame.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
-    e.stopPropagation(); elm.setPointerCapture(e.pointerId); (sign > 0 ? src : tile).noDrag = true;
-    const sx = e.clientX, sy = e.clientY, r0 = { ...z.rect }, k = scale();
-    const move = (ev) => { z.rect = clampRect({ ...r0, x: r0.x + sign * (ev.clientX - sx) * k.x, y: r0.y + sign * (ev.clientY - sy) * k.y }); };
-    const up = () => { elm.removeEventListener('pointermove', move); elm.removeEventListener('pointerup', up); src.noDrag = tile.noDrag = false; persistState(); };
-    elm.addEventListener('pointermove', move); elm.addEventListener('pointerup', up);
+    e.stopPropagation(); frame.setPointerCapture(e.pointerId); src.noDrag = true;
+    const sx = e.clientX, sy = e.clientY, r0 = { ...z.rect }, b = videoBox(src);
+    const move = (ev) => { z.rect = clampRect({ ...r0, x: r0.x + (ev.clientX - sx) / b.w, y: r0.y + (ev.clientY - sy) / b.h }); };
+    const up = () => { frame.removeEventListener('pointermove', move); frame.removeEventListener('pointerup', up); frame.removeEventListener('pointercancel', up); src.noDrag = false; persistState(); };
+    frame.addEventListener('pointermove', move); frame.addEventListener('pointerup', up); frame.addEventListener('pointercancel', up);
   });
-  drag(frame, 1, () => { const b = videoBox(src); return { x: 1 / b.w, y: 1 / b.h }; });
-  drag(canvas, -1, () => ({ x: z.rect.w / (z.dispW || canvas.clientWidth), y: z.rect.h / (z.dispH || canvas.clientHeight) }));
-  canvas.addEventListener('wheel', (e) => {
+  const wheel = (e) => {
     e.preventDefault(); e.stopPropagation();
     const f = e.deltaY < 0 ? 1 / 1.2 : 1.2, r = z.rect, cx = r.x + r.w / 2, cy = r.y + r.h / 2, w = r.w * f, h = r.h * f;
     z.rect = clampRect({ x: cx - w / 2, y: cy - h / 2, w, h }); persistState();
-  }, { passive: false });
-  canvas.addEventListener('dblclick', (e) => e.stopPropagation());
+  };
+  canvas.addEventListener('wheel', wheel, { passive: false });
+  frame.addEventListener('wheel', wheel, { passive: false });
   if (!zoomRaf) zoomRaf = requestAnimationFrame(drawZooms);
   persistState();
 }

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Fixed: Reolink cameras connected by UID stopped playing recordings after a few seconds and kept reconnecting. Playback now runs continuously.
+- Fixed: playback no longer jumps ahead when the recording has a small gap.
+- Zoom windows can now be moved: drag the zoom window to another tile. Drag its coloured frame on the camera to move the zoomed area, and scroll on the frame or in the zoom window to zoom in or out.
+- Dragging a camera tile onto another one now swaps them instantly, without reconnecting the streams.
+
 ## 1.5.0 - 2026-10-27
 
 - The installers now list Mike Borden as publisher.
