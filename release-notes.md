@@ -1,3 +1,4 @@
-- The installers now list Mike Borden as publisher.
-- Main View: right-click a tile → Make bigger / Make smaller. A bigger tile takes the space of its neighbours; their cameras move to free tiles (or a new row) and keep playing.
-- Main View: zoom windows. Click the zoom window button on a tile (or right-click → Create zoom window) and drag a box on the video: a new tile shows that area enlarged. Drag the coloured frame on the camera, or drag and scroll inside the zoom window, to change the area. Uses no extra stream; saved with layouts.
+- Fixed: Reolink cameras connected by UID stopped playing recordings after a few seconds and kept reconnecting. Playback now runs continuously.
+- Fixed: playback no longer jumps ahead when the recording has a small gap.
+- Zoom windows can now be moved: drag the zoom window to another tile. Drag its coloured frame on the camera to move the zoomed area, and scroll on the frame or in the zoom window to zoom in or out.
+- Dragging a camera tile onto another one now swaps them instantly, without reconnecting the streams.
