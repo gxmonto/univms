@@ -1,4 +1,3 @@
-- Fixed: Reolink cameras connected by UID stopped playing recordings after a few seconds and kept reconnecting. Playback now runs continuously.
-- Fixed: playback no longer jumps ahead when the recording has a small gap.
-- Zoom windows can now be moved: drag the zoom window to another tile. Drag its coloured frame on the camera to move the zoomed area, and scroll on the frame or in the zoom window to zoom in or out.
-- Dragging a camera tile onto another one now swaps them instantly, without reconnecting the streams.
+- Fixed: Reolink cameras connected by UID showed recordings at the wrong time (or none) on PCs in a different time zone than the recorder. Times now follow the recorder's own clock.
+
+- Reolink cameras connected by UID: recordings now also work when the Reolink desktop app is installed for all users (Program Files). Without the Reolink app, Playback now says so instead of showing an empty timeline.
