@@ -32,9 +32,21 @@ function register(ctx) {
     let base;
     try { base = app.getPath('videos'); } catch (_) { try { base = app.getPath('documents'); } catch (_e) { base = app.getPath('home'); } }
     return {
-      snapshotDir: s.snapshotDir || path.join(base, 'UniVMS', 'Snapshots'),
+      snapshotDir: s.snapshotDir || (() => { try { return app.getPath('pictures'); } catch (_) { return base; } })(), // straight into the folder, no UniVMS subfolder
       recordDir: s.recordDir || path.join(base, 'UniVMS', 'Recordings'),
     };
+  };
+
+  // Snapshots go straight into the snapshot folder (no per-site subfolder), named like DW: "<camera> <YYYY-MM-DD> <HH.MM.SS>"
+  // (time = the frame's time: now for live, the recorded time in playback)
+  const snapFile = (cam, ms, ext, suffix = '') => {
+    const d = new Date(ms || Date.now()), p = (n) => String(n).padStart(2, '0');
+    const name = String(cam.name || 'camera').replace(/[<>:"/\\|?*\x00-\x1f]+/g, '_').trim().slice(0, 80) || 'camera';
+    const base = `${name} ${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}.${p(d.getMinutes())}.${p(d.getSeconds())}${suffix}`;
+    const dir = dirs().snapshotDir; fs.mkdirSync(dir, { recursive: true });
+    let file = path.join(dir, `${base}.${ext}`);
+    for (let k = 2; fs.existsSync(file); k++) file = path.join(dir, `${base} (${k}).${ext}`);
+    return file;
   };
 
   const camInfo = (cameraId) => {
@@ -350,22 +362,18 @@ function register(ctx) {
   });
   h('record:stop', (_e, cameraId) => streams.stopRecord(cameraId));
   h('record:status', () => Object.fromEntries([...streams.records.entries()].map(([k, v]) => [k, { file: v.file, started: v.started }])));
-  h('files:saveSnapshot', (_e, { cameraId, dataUrl, suffix }) => {
-    const { cam, dev } = camInfo(cameraId);
-    const dir = path.join(dirs().snapshotDir, safeName(dev.name));
-    fs.mkdirSync(dir, { recursive: true });
+  h('files:saveSnapshot', (_e, { cameraId, dataUrl, suffix, time }) => {
+    const { cam } = camInfo(cameraId);
     const m = /^data:image\/(\w+);base64,(.+)$/.exec(dataUrl);
     if (!m) throw new Error('Bad image data');
-    const file = path.join(dir, `${safeName(cam.name)}_${ts()}${suffix || ''}.${m[1] === 'jpeg' ? 'jpg' : m[1]}`);
+    const file = snapFile(cam, time, m[1] === 'jpeg' ? 'jpg' : m[1], suffix);
     fs.writeFileSync(file, Buffer.from(m[2], 'base64'));
     return { file };
   });
   h('files:saveDeviceSnapshot', async (_e, { cameraId }) => {
-    const { cam, dev, driver, channel } = camInfo(cameraId);
+    const { cam, driver, channel } = camInfo(cameraId);
     const r = await driver.snapshot(channel, 'main');
-    const dir = path.join(dirs().snapshotDir, safeName(dev.name));
-    fs.mkdirSync(dir, { recursive: true });
-    const file = path.join(dir, `${safeName(cam.name)}_${ts()}_full.jpg`);
+    const file = snapFile(cam, Date.now(), 'jpg', ' (device)');
     fs.writeFileSync(file, r.data);
     return { file };
   });
@@ -376,8 +384,9 @@ function register(ctx) {
       if (!fs.existsSync(d) || depth > 3) return;
       for (const ent of fs.readdirSync(d, { withFileTypes: true })) {
         const p = path.join(d, ent.name);
-        if (ent.isDirectory()) walk(p, depth + 1);
-        else if (/\.(mp4|mkv|avi|jpg|jpeg|png)$/i.test(ent.name)) {
+        // snapshots: images only, one level deep (the folder may be e.g. Downloads; older versions used a subfolder per site)
+        if (ent.isDirectory()) { if (kind === 'recordings' || depth < 1) walk(p, depth + 1); }
+        else if ((kind === 'recordings' ? /\.(mp4|mkv|avi)$/i : /\.(jpg|jpeg|png)$/i).test(ent.name)) {
           const st = fs.statSync(p);
           out.push({ path: p, name: ent.name, folder: path.relative(dir, path.dirname(p)), size: st.size, mtime: st.mtimeMs, type: /\.(jpe?g|png)$/i.test(ent.name) ? 'image' : 'video' });
         }

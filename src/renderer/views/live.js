@@ -386,7 +386,7 @@ async function snapshot(tile) {
   if (!tile.player) return;
   const url = tile.dewarp ? tile.dewarp.snapshotDataUrl() : tile.player.snapshotDataUrl();
   if (!url) { toast('No frame yet', 'warn'); return; }
-  try { const r = await api('files:saveSnapshot', { cameraId: tile.cameraId, dataUrl: url, suffix: tile.dewarp ? '_dewarp' : '' }); toast('Snapshot saved: ' + r.file, 'ok'); } catch (e) { toast(e.message, 'err'); }
+  try { const r = await api('files:saveSnapshot', { cameraId: tile.cameraId, dataUrl: url, suffix: tile.dewarp ? ' (dewarped)' : '' }); toast('Snapshot saved: ' + r.file, 'ok'); } catch (e) { toast(e.message, 'err'); }
 }
 async function toggleRecord(tile) {
   if (!tile.cameraId) return;

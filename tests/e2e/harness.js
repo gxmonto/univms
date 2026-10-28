@@ -24,7 +24,7 @@ function startRtspSource(ffmpeg) {
   if (!mediamtx || !fs.existsSync(mediamtx)) throw new Error('UNIVMS_E2E_MEDIAMTX must point to a mediamtx binary');
   const cfgDir = fs.mkdtempSync(path.join(os.tmpdir(), 'univms-mtx-'));
   const cfg = path.join(cfgDir, 'mediamtx.yml');
-  fs.writeFileSync(cfg, `logLevel: warn\napi: no\nmetrics: no\npprof: no\nplayback: no\nrtsp: yes\nrtspAddress: 127.0.0.1:${RTSP_PORT}\nrtspTransports: [tcp]\nrtmp: no\nhls: no\nwebrtc: no\nsrt: no\npaths:\n  all_others:\n`);
+  fs.writeFileSync(cfg, `logLevel: warn\napi: no\nmetrics: no\npprof: no\nplayback: no\nrtsp: yes\nrtspAddress: 127.0.0.1:${RTSP_PORT}\nrtspTransports: [tcp]\nrtmp: no\nhls: no\nwebrtc: no\nsrt: no\nmoq: no\npaths:\n  all_others:\n`);
   const server = spawn(mediamtx, [cfg], { cwd: cfgDir, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }); // cwd: keeps its auto-generated certs out of the repo
   server.stdout.on('data', (d) => process.stdout.write('[mediamtx] ' + d));
   server.stderr.on('data', (d) => process.stdout.write('[mediamtx] ' + d));
@@ -197,6 +197,14 @@ async function run(ctx, win, app) {
       return z2 === z && z2.dataset.idx !== from && z2.querySelector('canvas.zoomwin').width > 0;
     })()`);
     await shot('13-zoom-moved');
+    // snapshot: straight into the chosen folder (no subfolder), named "<camera> <YYYY-MM-DD> <HH.MM.SS>.png"
+    const snapDir = fs.mkdtempSync(path.join(os.tmpdir(), 'univms-snap-'));
+    await js(`window.vms.invoke('settings:set', { snapshotDir: ${JSON.stringify(snapDir)} })`);
+    await js(`document.querySelector('.tile video:not(.hidden)').closest('.tile').querySelector('.tools button[title="Snapshot"]').click()`);
+    await sleep(1500);
+    const snaps = fs.readdirSync(snapDir);
+    results.snapshotName = snaps.join(',') || await js(`[...document.querySelectorAll('#toast-root *')].map((x) => x.textContent).pop() || ''`);
+    results.snapshotFlat = snaps.length === 1 && /^Test Pattern \d{4}-\d\d-\d\d \d\d\.\d\d\.\d\d\.(png|jpg)$/.test(snaps[0]) && fs.statSync(path.join(snapDir, snaps[0])).isFile();
   } catch (e) {
     results.error = e.message;
   } finally {
@@ -204,7 +212,7 @@ async function run(ctx, win, app) {
   }
   log('E2E RESULTS', results);
   fs.writeFileSync(path.join(outDir, 'results.json'), JSON.stringify(results, null, 2));
-  const pass = results.deviceAdded && results.cameras > 0 && results.livePlaying && results.mapImageWidth > 0 && results.mapHotspots === 1 && results.events > 0 && results.treeDraggable === 'true' && results.dropAssigned === true && results.talkBytesAtDevice > 0 && results.talkClosed === 1 && Array.isArray(results.rulesTabs) && results.rulesTabs.length === 3 && results.navCollapsedNarrow === true && results.closeVisibleNarrow === true && results.navExpandedWide === true && results.hikConnect && results.hikConnect.qr && results.hikConnect.serial && results.persistedDevices === 1 && results.sidePanelHidden === true && results.layoutFull === true && results.layoutFullExited === true && results.tileExpanded === true && results.zoomWindow === true && results.zoomAreaMoved === true && results.zoomTileMoved === true && !results.error;
+  const pass = results.deviceAdded && results.cameras > 0 && results.livePlaying && results.mapImageWidth > 0 && results.mapHotspots === 1 && results.events > 0 && results.treeDraggable === 'true' && results.dropAssigned === true && results.talkBytesAtDevice > 0 && results.talkClosed === 1 && Array.isArray(results.rulesTabs) && results.rulesTabs.length === 3 && results.navCollapsedNarrow === true && results.closeVisibleNarrow === true && results.navExpandedWide === true && results.hikConnect && results.hikConnect.qr && results.hikConnect.serial && results.persistedDevices === 1 && results.sidePanelHidden === true && results.layoutFull === true && results.layoutFullExited === true && results.tileExpanded === true && results.zoomWindow === true && results.zoomAreaMoved === true && results.zoomTileMoved === true && results.snapshotFlat === true && !results.error;
   log(pass ? 'E2E PASS' : 'E2E FAIL');
   app.isQuitting = true;
   if (ctx.shutdownAll) ctx.shutdownAll();

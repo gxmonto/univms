@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Snapshots are saved directly in the snapshot folder you choose (no extra folders), named with the camera name, date and time, e.g. `Camera 01 2026-10-28 17.44.57.jpg`. Playback snapshots use the time of the recorded frame. Without a chosen folder they go to Pictures.
+
 ## 1.5.2 - 2026-10-28
 
 - Fixed: Reolink cameras connected by UID showed recordings at the wrong time (or none) on PCs in a different time zone than the recorder. Times now follow the recorder's own clock.

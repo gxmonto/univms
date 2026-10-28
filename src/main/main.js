@@ -142,7 +142,7 @@ if (!gotLock && !SMOKE && !E2E) {
     const tpl = [
       { label: 'File', submenu: [
         { label: 'New live view window', accelerator: 'CmdOrCtrl+N', click: () => createWindow({ aux: true, view: 'live' }) },
-        { label: 'Open snapshots folder', click: () => { const s = store.getSettings(); shell.openPath(s.snapshotDir || path.join(app.getPath('videos'), 'UniVMS', 'Snapshots')); } },
+        { label: 'Open snapshots folder', click: () => { const s = store.getSettings(); shell.openPath(s.snapshotDir || app.getPath('pictures')); } },
         { type: 'separator' },
         { role: 'quit' },
       ] },

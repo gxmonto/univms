@@ -98,7 +98,7 @@ async function snapshot(t) {
   if (!t.player) return;
   const url = t.player.snapshotDataUrl();
   if (!url) return toast('No frame yet', 'warn');
-  try { const r = await api('files:saveSnapshot', { cameraId: t.cameraId, dataUrl: url, suffix: '_pb' }); toast('Snapshot saved: ' + r.file, 'ok'); } catch (e) { toast(e.message, 'err'); }
+  try { const r = await api('files:saveSnapshot', { cameraId: t.cameraId, dataUrl: url, time: t.lastTime }); toast('Snapshot saved: ' + r.file, 'ok'); } catch (e) { toast(e.message, 'err'); }
 }
 
 // ---------- export ----------
