@@ -14,9 +14,11 @@
 const path = require('path');
 const fs = require('fs');
 
-const DIR = process.env.REOLINK_APP_DIR || path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Reolink', 'resources', 'app');
+// the Reolink app installs per user (default) or for all users (Program Files)
+const DIR = [process.env.REOLINK_APP_DIR, ...[process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Programs'), process.env.ProgramFiles, process.env['ProgramFiles(x86)']].filter(Boolean).map((p) => path.join(p, 'Reolink', 'resources', 'app'))]
+  .filter(Boolean).find((d) => fs.existsSync(path.join(d, 'libBCSDKWrapper.dll'))) || '';
 const DLL = path.join(DIR, 'libBCSDKWrapper.dll');
-const available = () => process.platform === 'win32' && fs.existsSync(DLL);
+const available = () => process.platform === 'win32' && !!DIR;
 
 const CMD = { CAMERA_STATE: 2119, LOGIN: 2087, SEARCH_RECFILES: 2113, DOWNLOAD_CUT: 2145, DOWNLOAD_CUT_PROGRESS: 2148 };
 const STREAM = { main: 0, sub: 1 };

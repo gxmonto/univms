@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reolink cameras connected by UID: recordings now also work when the Reolink desktop app is installed for all users (Program Files). Without the Reolink app, Playback now says so instead of showing an empty timeline.
+
 ## 1.5.1 - 2026-10-27
 
 - Fixed: Reolink cameras connected by UID stopped playing recordings after a few seconds and kept reconnecting. Playback now runs continuously.

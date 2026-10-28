@@ -89,7 +89,7 @@ class ReolinkUidDevice {
 
   /** Recording search through Reolink's SDK (needs the Reolink desktop app installed). */
   async searchRecordings(channel, startMs, endMs) {
-    if (!rsdk.available()) return [];
+    // without the Reolink app the call rejects with a message saying so (an empty list looked like "no recordings")
     const files = await rsdk.call('search', this.sdkDev(), { channel: Number(channel), stream: 'sub', startMs, endMs });
     return files.map((f) => ({ start: f.start, end: f.end, type: 'timing' }));
   }
