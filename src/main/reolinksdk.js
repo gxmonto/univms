@@ -20,7 +20,7 @@ const DIR = [process.env.REOLINK_APP_DIR, ...[process.env.LOCALAPPDATA && path.j
 const DLL = path.join(DIR, 'libBCSDKWrapper.dll');
 const available = () => process.platform === 'win32' && !!DIR;
 
-const CMD = { CAMERA_STATE: 2119, LOGIN: 2087, SEARCH_RECFILES: 2113, DOWNLOAD_CUT: 2145, DOWNLOAD_CUT_PROGRESS: 2148 };
+const CMD = { GET_SYS: 2021, CAMERA_STATE: 2119, LOGIN: 2087, SEARCH_RECFILES: 2113, DOWNLOAD_CUT: 2145, DOWNLOAD_CUT_PROGRESS: 2148 };
 const STREAM = { main: 0, sub: 1 };
 
 // ---------------------------------------------------------------- host (utility process)
@@ -45,6 +45,8 @@ function host() {
   const QuickOpen = koffi.struct('RlQuickOpen', { chnbitMap: 'uint64_t', enabled: 'int', streamType: 'int' });
   const OpenCtx = koffi.struct('RlOpenCtx', { async: 'bool', autoPreviewCtx: AutoPreview, quickOpenCtx: QuickOpen });
   const BcTime = koffi.struct('RlTime', { iYear: 'int', iMonth: 'int', iDay: 'int', iHour: 'int', iMinute: 'int', iSecond: 'int' });
+  // E_BC_CMD_GET_SYS answer (232 bytes): the recorder's own clock, local time
+  const SysGeneral = koffi.struct('RlSysGeneral', { validField: bytes(128), eTS: 'int', iTimeZone: 'int', eDateFormat: 'int', eTimeFormat: 'int', iYear: 'int', iMonth: 'int', iDay: 'int', iHour: 'int', iMin: 'int', iSecond: 'int', iDeviceId: 'int', iLanguage: 'int', cDeviceName: str(32), iLoginLock: 'int', iLoginLockTime: 'int', iAllowedLoginTimes: 'int', iSyncTime: 'int', isDst: 'int' });
   const TextFeature = koffi.struct('RlTextFeature', { text: bytes(128), textFeature: bytes(2048) });
   const FeatureList = koffi.struct('RlFeatureList', { iSize: 'int', item: koffi.array(TextFeature, 6) });
   const Filter = koffi.struct('RlFilter', { version: 'int', similarity: 'int', iSucceed: 'int', feature: TextFeature, filterList: FeatureList });
@@ -63,13 +65,16 @@ function host() {
     SetClientModel: fn('int BCSDK_SetClientModel(const char *m)'),
     AddDevice: fn('int BCSDK_AddDevice(RlLoginInfo *info, RlCallbacks *cb, _Out_ int *err)'),
     RemoveDevice: fn('int BCSDK_RemoveDevice(int h)'),
+    RemoteGetSysGeneralCfg: fn('int BCSDK_RemoteGetSysGeneralCfg(int h, int ch, int ct)'),
     DeviceForceOpen: fn('int BCSDK_DeviceForceOpen(int h, RlOpenCtx ctx)'),
     RecordFilesSearch: fn('int BCSDK_RecordFilesSearch(int h, int ch, RlSearchParam *p)'),
     StartDownloadByTime: fn('int BCSDK_StartDownloadByTime(int h, int ch, const char *chUid, int logicChnBitmap, RlTime *start, RlTime *end, int stream, const char *tmpDir, const char *dst, int reserved)'),
     StopDownload: fn('int BCSDK_StopDownload(int h, int ch)'),
   };
-  const tparts = (ms) => { const d = new Date(ms); return { iYear: d.getFullYear(), iMonth: d.getMonth() + 1, iDay: d.getDate(), iHour: d.getHours(), iMinute: d.getMinutes(), iSecond: d.getSeconds() }; };
-  const tms = (t) => new Date(t.iYear, t.iMonth - 1, t.iDay, t.iHour, t.iMinute, t.iSecond).getTime();
+  // The SDK's times are the recorder's local wall clock. With its UTC offset known (s.offMin, from its clock) convert with
+  // that; otherwise fall back to the PC's zone (right only when PC and recorder share a time zone).
+  const tparts = (ms, off) => { const d = off == null ? new Date(ms) : new Date(ms + off * 60000), u = off != null; return { iYear: u ? d.getUTCFullYear() : d.getFullYear(), iMonth: (u ? d.getUTCMonth() : d.getMonth()) + 1, iDay: u ? d.getUTCDate() : d.getDate(), iHour: u ? d.getUTCHours() : d.getHours(), iMinute: u ? d.getUTCMinutes() : d.getMinutes(), iSecond: u ? d.getUTCSeconds() : d.getSeconds() }; };
+  const tms = (t, off) => (off == null ? new Date(t.iYear, t.iMonth - 1, t.iDay, t.iHour, t.iMinute, t.iSecond).getTime() : Date.UTC(t.iYear, t.iMonth - 1, t.iDay, t.iHour, t.iMinute, t.iSecond) - off * 60000);
 
   sdk.Open({ uid_type: 0, area: 0, trans: 0, p2p_log_path: '', p2p_log_max_file_size: 0 });
   sdk.SetClientModel('win');
@@ -109,7 +114,21 @@ function host() {
     sdk.DeviceForceOpen(s.handle, { async: true, autoPreviewCtx: { enable: 0, size: 0, version: 0, previewInfo: [{ channel: 0, streamType: 0 }, { channel: 0, streamType: 0 }] }, quickOpenCtx: { chnbitMap: 0, enabled: 0, streamType: 0 } });
     try { await login; } catch (e) { drop(key); throw e; }
     s.loggedIn = true; s.lastUse = Date.now();
+    await readClock(s);
     return s;
+  }
+  // recorder UTC offset (minutes, DST included) = its clock minus ours, rounded to 15 min; null = unknown (PC zone used)
+  async function readClock(s) {
+    const ans = waitFor(s, CMD.GET_SYS, 10000, (e) => (e.bcRspCode !== 0 ? new Error(`code ${e.bcRspCode}`) : e.pRspData && e.dataLen >= koffi.sizeof(SysGeneral) ? koffi.decode(e.pRspData, SysGeneral) : new Error(`len ${e.dataLen}`)));
+    ans.catch(() => {});
+    try {
+      const rc = sdk.RemoteGetSysGeneralCfg(s.handle, 0, 0);
+      if (rc !== 0) throw new Error(`rc ${rc}`);
+      const g = await ans;
+      const off = Math.round((Date.UTC(g.iYear, g.iMonth - 1, g.iDay, g.iHour, g.iMin, g.iSecond) - Date.now()) / 900000) * 15;
+      s.offMin = Math.abs(off) <= 14 * 60 ? off : null;
+      log('reolink clock', s.key.split('|')[0], 'UTC offset', s.offMin, 'min; PC', -new Date().getTimezoneOffset());
+    } catch (e) { s.offMin = null; log('reolink clock unreadable, using the PC time zone:', e.message); }
   }
   function drop(key) { const s = sessions.get(key); if (!s) return; sessions.delete(key); byHandle.delete(s.handle); try { sdk.RemoveDevice(s.handle); } catch (_) {} }
 
@@ -126,13 +145,13 @@ function host() {
         if (!e.dataLen || !e.pRspData) { clearTimeout(timer); resolve(); return true; } // no data = nothing (more) found
         const r = koffi.decode(e.pRspData, SearchResult);
         if (r.seq !== mySeq) return false;
-        for (let i = 0; i < r.fileNum; i++) { const f = r.recFile[i]; out.push({ start: tms(f.struStartTime), end: tms(f.struStopTime), recordType: Number(f.recordType), size: Number(f.iFileSize) }); }
+        for (let i = 0; i < r.fileNum; i++) { const f = r.recFile[i]; out.push({ start: tms(f.struStartTime, s.offMin), end: tms(f.struStopTime, s.offMin), recordType: Number(f.recordType), size: Number(f.iFileSize) }); }
         if (r.fileNum < 40) { clearTimeout(timer); resolve(); return true; }
         return false; // more batches follow
       });
     });
     const empty = { text: Buffer.alloc(128), textFeature: Buffer.alloc(2048) };
-    const rc = sdk.RecordFilesSearch(s.handle, channel, { uid: '', logicChnBitmap: 255, bNotSearchVideo: false, streamType: STREAM[stream] ?? 0, fileType: 0, seq: mySeq, start: tparts(startMs), end: tparts(endMs), bsearchAITrack: true, remoteChn: -1, mode: 0, needFeature: 0, filterList: { version: 0, similarity: 0, iSucceed: 0, feature: empty, filterList: { iSize: 0, item: Array(6).fill(empty) } }, category: Buffer.alloc(32), subTypeList: { subSize: 0, subType: Array(16).fill(Buffer.alloc(78)) } });
+    const rc = sdk.RecordFilesSearch(s.handle, channel, { uid: '', logicChnBitmap: 255, bNotSearchVideo: false, streamType: STREAM[stream] ?? 0, fileType: 0, seq: mySeq, start: tparts(startMs, s.offMin), end: tparts(endMs, s.offMin), bsearchAITrack: true, remoteChn: -1, mode: 0, needFeature: 0, filterList: { version: 0, similarity: 0, iSucceed: 0, feature: empty, filterList: { iSize: 0, item: Array(6).fill(empty) } }, category: Buffer.alloc(32), subTypeList: { subSize: 0, subType: Array(16).fill(Buffer.alloc(78)) } });
     if (rc !== 0) throw new Error(`Reolink search could not start (${rc})`);
     await done;
     return out.sort((a, b) => a.start - b.start);
@@ -147,7 +166,7 @@ function host() {
     try { fs.unlinkSync(file); } catch (_) {}
     const p = (async () => {
       const done = waitFor(s, CMD.DOWNLOAD_CUT, 10 * 60000, (e) => (e.bcRspCode === 0 ? true : new Error(`Reolink download failed (code ${e.bcRspCode})`)));
-      const rc = sdk.StartDownloadByTime(s.handle, channel, '', 0, tparts(startMs), tparts(endMs), STREAM[stream] ?? 1, tmp, file, 0);
+      const rc = sdk.StartDownloadByTime(s.handle, channel, '', 0, tparts(startMs, s.offMin), tparts(endMs, s.offMin), STREAM[stream] ?? 1, tmp, file, 0);
       if (rc !== 0) throw new Error(`Reolink download could not start (${rc})`);
       await done;
       sdk.StopDownload(s.handle, channel); // finalizes the MP4 (moov + move out of the temp folder), as the Reolink app does at 100 %
