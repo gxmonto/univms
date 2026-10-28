@@ -6,7 +6,7 @@
  * full-motion video goes to its native window player).
  *
  * Signatures and struct layouts come from the Reolink app's own ffi table (resources/app/183.js, module 35490, types in
- * module 39889, sizes in module 22141); verified 2026-10-21 against 101 Franklin's RLN16-410 (fw v3.5.1.356).
+ * module 39889, sizes in module 22141); verified 2026-10-21 against an RLN16-410 (fw v3.5.1.356).
  *
  * One file, two roles: required from the main process it is a proxy that runs this same file in an Electron
  * utilityProcess (an SDK crash or a blocking call never takes the window down); in that child it hosts the SDK.
@@ -20,7 +20,7 @@ const DIR = [process.env.REOLINK_APP_DIR, ...[process.env.LOCALAPPDATA && path.j
 const DLL = path.join(DIR, 'libBCSDKWrapper.dll');
 const available = () => process.platform === 'win32' && !!DIR;
 
-const CMD = { GET_SYS: 2021, CAMERA_STATE: 2119, LOGIN: 2087, SEARCH_RECFILES: 2113, DOWNLOAD_CUT: 2145, DOWNLOAD_CUT_PROGRESS: 2148 };
+const CMD = { GET_OSD: 2001, GET_SYS: 2021, CAMERA_STATE: 2119, LOGIN: 2087, SEARCH_RECFILES: 2113, DOWNLOAD_CUT: 2145, DOWNLOAD_CUT_PROGRESS: 2148 };
 const STREAM = { main: 0, sub: 1 };
 
 // ---------------------------------------------------------------- host (utility process)
@@ -47,6 +47,9 @@ function host() {
   const BcTime = koffi.struct('RlTime', { iYear: 'int', iMonth: 'int', iDay: 'int', iHour: 'int', iMinute: 'int', iSecond: 'int' });
   // E_BC_CMD_GET_SYS answer (232 bytes): the recorder's own clock, local time
   const SysGeneral = koffi.struct('RlSysGeneral', { validField: bytes(128), eTS: 'int', iTimeZone: 'int', eDateFormat: 'int', eTimeFormat: 'int', iYear: 'int', iMonth: 'int', iDay: 'int', iHour: 'int', iMin: 'int', iSecond: 'int', iDeviceId: 'int', iLanguage: 'int', cDeviceName: str(32), iLoginLock: 'int', iLoginLockTime: 'int', iAllowedLoginTimes: 'int', iSyncTime: 'int', isDst: 'int' });
+  // E_BC_CMD_GET_OSD answer: the channel name shown on the picture (= the camera name in the Reolink app)
+  const OsdPos = koffi.struct('RlOsdPos', { bShow: 'bool', iX: 'int', iY: 'int' });
+  const Osd = koffi.struct('RlOsd', { validField: bytes(128), isCopyTo: 'bool', byChannelName: str(32), channelName: OsdPos, time: OsdPos, flowData: OsdPos, eSize: 'int', elanguage: 'int', iBgColor: 'int', iWaterMark: 'int', iWaterMarkXPos: 'int', iWaterMarkYPos: 'int' });
   const TextFeature = koffi.struct('RlTextFeature', { text: bytes(128), textFeature: bytes(2048) });
   const FeatureList = koffi.struct('RlFeatureList', { iSize: 'int', item: koffi.array(TextFeature, 6) });
   const Filter = koffi.struct('RlFilter', { version: 'int', similarity: 'int', iSucceed: 'int', feature: TextFeature, filterList: FeatureList });
@@ -65,6 +68,7 @@ function host() {
     SetClientModel: fn('int BCSDK_SetClientModel(const char *m)'),
     AddDevice: fn('int BCSDK_AddDevice(RlLoginInfo *info, RlCallbacks *cb, _Out_ int *err)'),
     RemoveDevice: fn('int BCSDK_RemoveDevice(int h)'),
+    RemoteGetOsdCfg: fn('int BCSDK_RemoteGetOsdCfg(int h, int ch)'),
     RemoteGetSysGeneralCfg: fn('int BCSDK_RemoteGetSysGeneralCfg(int h, int ch, int ct)'),
     DeviceForceOpen: fn('int BCSDK_DeviceForceOpen(int h, RlOpenCtx ctx)'),
     RecordFilesSearch: fn('int BCSDK_RecordFilesSearch(int h, int ch, RlSearchParam *p)'),
@@ -193,6 +197,13 @@ function host() {
     const s = await session(dev); s.lastUse = Date.now();
     for (let i = 0; i < 50 && !s.cameraState; i++) await new Promise((r) => setTimeout(r, 200)); // arrives just after login
     if (!s.cameraState) throw new Error('Reolink SDK: the recorder did not report its cameras');
+    // devName is often empty on NVRs: the camera name the Reolink app shows is the channel's OSD name
+    for (const c of s.cameraState) {
+      if (c.name || c.state === 2) continue;
+      const ans = waitFor(s, CMD.GET_OSD, 8000, (e) => (e.channelId % 64 !== c.channel ? undefined : e.bcRspCode === 0 && e.pRspData && e.dataLen >= koffi.sizeof(Osd) ? koffi.decode(e.pRspData, Osd).byChannelName : ''));
+      ans.catch(() => {});
+      try { if (sdk.RemoteGetOsdCfg(s.handle, c.channel) === 0) c.name = String(await ans || '').trim(); } catch (_) {}
+    }
     return s.cameraState;
   }
 
