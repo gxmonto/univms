@@ -294,6 +294,11 @@ function register(ctx) {
     await require('qrcode').toFile(r.filePath, String(text || ''), { margin: 2, width: 800, errorCorrectionLevel: 'M' });
     return r.filePath;
   });
+  h('hikconnect:copyQr', async (_e, { text }) => {
+    const { clipboard, nativeImage } = require('electron');
+    clipboard.writeImage(nativeImage.createFromDataURL(await require('qrcode').toDataURL(String(text || ''), { margin: 2, width: 800, errorCorrectionLevel: 'M' })));
+    return true;
+  });
 
   // ---------- smart event rules (Hikvision) ----------
   const rulesDriver = (cameraId) => { const { dev, driver, channel } = camInfo(cameraId); if (dev.type !== 'hikvision') throw new Error('Event rules can be edited on Hikvision devices only'); return { driver, channel }; };

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Hik-Connect QR code: new Copy button puts the QR image on the clipboard.
+
 ## 1.5.4 - 2026-10-29
 
 - Reolink cameras added by UID show their real names (as in the Reolink app) instead of Camera 1, Camera 2… The names also appear in snapshot file names. Needs the Reolink desktop app on the PC; the list updates shortly after start.

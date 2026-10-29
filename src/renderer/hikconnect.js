@@ -35,6 +35,7 @@ export async function openHikConnect(dev) {
   const actions = el('div', { class: 'row', style: { marginTop: '8px', display: 'none' } });
   let qrText = '';
   actions.append(
+    btn('Copy', { cls: 'sm' }, async () => { try { await api('hikconnect:copyQr', { text: qrText }); toast('QR copied to the clipboard', 'ok'); } catch (e) { toast(e.message, 'err'); } }),
     btn('Save PNG…', { cls: 'sm', icon: 'download' }, async () => { try { const f = await api('hikconnect:saveQr', { deviceId: dev.id, text: qrText }); if (f) toast('Saved ' + f, 'ok'); } catch (e) { toast(e.message, 'err'); } }),
     btn('Print', { cls: 'sm' }, () => printQr(dev, qhost.value, qport.value, qrImg.src)));
   const generate = async () => {
