@@ -1,1 +1,2 @@
-- Snapshots are saved directly in the snapshot folder you choose (no extra folders), named with the camera name, date and time, e.g. `Camera 01 2026-10-28 17.44.57.jpg`. Playback snapshots use the time of the recorded frame. Without a chosen folder they go to Pictures.
+- Reolink cameras added by UID show their real names (as in the Reolink app) instead of Camera 1, Camera 2… The names also appear in snapshot file names. Needs the Reolink desktop app on the PC; the list updates shortly after start.
+- Reolink recordings by UID: the log (`%APPDATA%\UniVMS\logs\main.log`) now records login, recorder clock, search and download results, to diagnose playback that fails on one PC.
