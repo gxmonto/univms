@@ -116,7 +116,9 @@ function host() {
     }
     const login = waitFor(s, CMD.LOGIN, 30000, (e) => (e.bcRspCode === 0 ? true : Object.assign(new Error(e.bcRspCode === 10 || e.bcRspCode === 4 ? 'Login rejected by the Reolink device (user or password)' : `Reolink login failed (code ${e.bcRspCode})`), { authFailure: e.bcRspCode === 10 || e.bcRspCode === 4 })));
     sdk.DeviceForceOpen(s.handle, { async: true, autoPreviewCtx: { enable: 0, size: 0, version: 0, previewInfo: [{ channel: 0, streamType: 0 }, { channel: 0, streamType: 0 }] }, quickOpenCtx: { chnbitMap: 0, enabled: 0, streamType: 0 } });
-    try { await login; } catch (e) { drop(key); throw e; }
+    const t0 = Date.now();
+    try { await login; } catch (e) { drop(key); log('reolink login failed', uid.slice(0, 6) + '…', e.message); throw e; }
+    log('reolink login ok', uid.slice(0, 6) + '…', Date.now() - t0, 'ms');
     s.loggedIn = true; s.lastUse = Date.now();
     await readClock(s);
     return s;
@@ -158,6 +160,7 @@ function host() {
     const rc = sdk.RecordFilesSearch(s.handle, channel, { uid: '', logicChnBitmap: 255, bNotSearchVideo: false, streamType: STREAM[stream] ?? 0, fileType: 0, seq: mySeq, start: tparts(startMs, s.offMin), end: tparts(endMs, s.offMin), bsearchAITrack: true, remoteChn: -1, mode: 0, needFeature: 0, filterList: { version: 0, similarity: 0, iSucceed: 0, feature: empty, filterList: { iSize: 0, item: Array(6).fill(empty) } }, category: Buffer.alloc(32), subTypeList: { subSize: 0, subType: Array(16).fill(Buffer.alloc(78)) } });
     if (rc !== 0) throw new Error(`Reolink search could not start (${rc})`);
     await done;
+    log('reolink search ch', channel, out.length, 'files');
     return out.sort((a, b) => a.start - b.start);
   }
 
@@ -172,7 +175,7 @@ function host() {
       const done = waitFor(s, CMD.DOWNLOAD_CUT, 10 * 60000, (e) => (e.bcRspCode === 0 ? true : new Error(`Reolink download failed (code ${e.bcRspCode})`)));
       const rc = sdk.StartDownloadByTime(s.handle, channel, '', 0, tparts(startMs, s.offMin), tparts(endMs, s.offMin), STREAM[stream] ?? 1, tmp, file, 0);
       if (rc !== 0) throw new Error(`Reolink download could not start (${rc})`);
-      await done;
+      await done.catch((e) => { log('reolink download ch', channel, e.message); throw e; });
       sdk.StopDownload(s.handle, channel); // finalizes the MP4 (moov + move out of the temp folder), as the Reolink app does at 100 %
       // the file appears shortly after: wait until it exists and stops growing
       let last = -1;
@@ -209,6 +212,7 @@ function host() {
 
   const ops = { cameras, search, download, stopDownload: async (d, a) => stopDownload(d, a), logout: async (d) => drop(d.key), shutdown: () => { for (const k of [...sessions.keys()]) drop(k); try { sdk.Close(); } catch (_) {} } };
   if (!process.parentPort) return ops; // in-process use (tests / scratch harness)
+  log = (...a) => process.parentPort.postMessage({ log: a.join(' ') }); // into the app's main.log
   process.parentPort.on('message', async ({ data }) => {
     const { id, op, dev, args } = data;
     if (op === 'shutdown') { ops.shutdown(); process.exit(0); }
@@ -224,7 +228,7 @@ function call(op, dev, args) {
   if (!child) {
     const { utilityProcess } = require('electron');
     child = utilityProcess.fork(__filename, [], { serviceName: 'Reolink SDK host', stdio: 'ignore', env: { ...process.env, UNIVMS_REOLINK_SDK_HOST: '1' } });
-    child.on('message', (m) => { const p = pending.get(m.id); if (!p) return; pending.delete(m.id); m.ok ? p.resolve(m.result) : p.reject(Object.assign(new Error(m.error), { authFailure: m.authFailure })); });
+    child.on('message', (m) => { if (m.log) return log(m.log); const p = pending.get(m.id); if (!p) return; pending.delete(m.id); m.ok ? p.resolve(m.result) : p.reject(Object.assign(new Error(m.error), { authFailure: m.authFailure })); });
     child.on('exit', (code) => { log('Reolink SDK host exited', code); child = null; for (const p of pending.values()) p.reject(new Error('Reolink SDK host stopped')); pending.clear(); });
   }
   return new Promise((resolve, reject) => { const id = nextId++; pending.set(id, { resolve, reject }); child.postMessage({ id, op, dev, args }); });
