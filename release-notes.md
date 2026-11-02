@@ -1,2 +1,2 @@
-- Reolink cameras added by UID show their real names (as in the Reolink app) instead of Camera 1, Camera 2… The names also appear in snapshot file names. Needs the Reolink desktop app on the PC; the list updates shortly after start.
-- Reolink recordings by UID: the log (`%APPDATA%\UniVMS\logs\main.log`) now records login, recorder clock, search and download results, to diagnose playback that fails on one PC.
+- New Sight Watch look: logo, charcoal and red colors, Nunito font.
+- Hik-Connect QR code: new Copy button puts the QR image on the clipboard.
