@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- New Sight Watch look: logo, charcoal and red colors, Nunito font.
 - Hik-Connect QR code: new Copy button puts the QR image on the clipboard.
 
 ## 1.5.4 - 2026-10-29

@@ -118,7 +118,7 @@ async function showLogin() {
   pass.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
   user.addEventListener('keydown', (e) => { if (e.key === 'Enter') pass.focus(); });
   root.append(el('div', { class: 'login-box' },
-    el('div', { class: 'brand' }, el('span', { class: 'logo' }), el('span', { class: 'name' }, 'UniVMS')),
+    el('div', { class: 'brand' }, el('img', { class: 'logo', src: 'brand/logo.svg', alt: 'Sight Watch' }), el('span', { class: 'name' }, 'UniVMS')),
     el('div', { class: 'muted small', style: { textAlign: 'center' } }, 'Sign in to continue'),
     user, pass, err,
     el('button', { class: 'btn primary', style: { justifyContent: 'center', padding: '9px' }, onClick: go }, svg('login'), 'Login')));
