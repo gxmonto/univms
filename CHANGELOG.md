@@ -2,11 +2,12 @@
 
 ## Unreleased
 
+## 1.6.0 - 2026-11-24
+
 - Reolink UID live tiles share one relay per recorder. Live view can start independently of the optional Reolink playback library, which now pauses retries after a crash.
 - DW Spectrum live view handles missing or malformed server endpoints.
 - UniVMS checks the official GitHub release feed automatically. Windows installer builds download updates in the background and install on quit or restart. Portable and Linux builds offer download links.
 - Desktop windows are sandboxed, only the UniVMS app page can invoke desktop commands, and Electron and the XML parser have been updated.
-
 ## 1.5.5 - 2026-11-02
 
 - Themes added.

@@ -1,2 +1,4 @@
-- Themes added.
-- Hik-Connect QR code: new Copy button puts the QR image on the clipboard.
+- Reolink UID live tiles share one relay per recorder. Live view can start independently of the optional Reolink playback library, which now pauses retries after a crash.
+- DW Spectrum live view handles missing or malformed server endpoints.
+- UniVMS checks the official GitHub release feed automatically. Windows installer builds download updates in the background and install on quit or restart. Portable and Linux builds offer download links.
+- Desktop windows are sandboxed, only the UniVMS app page can invoke desktop commands, and Electron and the XML parser have been updated.
