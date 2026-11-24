@@ -222,18 +222,27 @@ function host() {
 }
 
 // ---------------------------------------------------------------- proxy (main process)
-let child = null, nextId = 1; const pending = new Map(); let log = () => {};
-function call(op, dev, args) {
+let child = null, nextId = 1, retryAfter = 0; const pending = new Map(); let log = () => {};
+async function call(op, dev, args) {
   if (!available()) return Promise.reject(new Error('Recordings over the Reolink UID need the Reolink desktop app installed on this PC (UniVMS uses its playback library).'));
   if (!child) {
+    if (op === 'stopDownload' || op === 'logout') return Promise.resolve();
+    if (Date.now() < retryAfter) return Promise.reject(new Error('The Reolink playback library stopped unexpectedly. Try again in a few minutes.'));
     const { utilityProcess } = require('electron');
     child = utilityProcess.fork(__filename, [], { serviceName: 'Reolink SDK host', stdio: 'ignore', env: { ...process.env, UNIVMS_REOLINK_SDK_HOST: '1' } });
     child.on('message', (m) => { if (m.log) return log(m.log); const p = pending.get(m.id); if (!p) return; pending.delete(m.id); m.ok ? p.resolve(m.result) : p.reject(Object.assign(new Error(m.error), { authFailure: m.authFailure })); });
-    child.on('exit', (code) => { log('Reolink SDK host exited', code); child = null; for (const p of pending.values()) p.reject(new Error('Reolink SDK host stopped')); pending.clear(); });
+    child.on('exit', (code) => {
+      log('Reolink SDK host exited', code);
+      child = null;
+      if (code !== 0) retryAfter = Date.now() + 2 * 60 * 1000;
+      const error = new Error(code === 0 ? 'Reolink SDK host stopped' : 'The Reolink playback library stopped unexpectedly. Live view uses a separate connection.');
+      for (const p of pending.values()) p.reject(error);
+      pending.clear();
+    });
   }
   return new Promise((resolve, reject) => { const id = nextId++; pending.set(id, { resolve, reject }); child.postMessage({ id, op, dev, args }); });
 }
-const shutdown = () => { if (child) { try { child.postMessage({ op: 'shutdown' }); } catch (_) {} child = null; } };
+const shutdown = () => { if (child) { try { child.postMessage({ op: 'shutdown' }); } catch (_) {} } };
 
 if (process.env.UNIVMS_REOLINK_SDK_HOST && process.parentPort) host();
 

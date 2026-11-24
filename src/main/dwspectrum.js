@@ -107,10 +107,10 @@ class DWSpectrumServer {
   async servers() {
     try {
       const j = await this.call('/rest/v2/servers');
-      return (Array.isArray(j) ? j : []).map((s) => ({ id: stripBraces(s.id), name: s.name, url: s.url, status: s.status, version: s.version, endpoints: s.endpoints || [] }));
+      return (Array.isArray(j) ? j : []).map((s) => ({ id: stripBraces(s.id), name: s.name, url: s.url, status: s.status, version: s.version, endpoints: Array.isArray(s.endpoints) ? s.endpoints : [] }));
     } catch (_) {
       const j = await this.call('/ec2/getMediaServersEx');
-      return (Array.isArray(j) ? j : []).map((s) => ({ id: stripBraces(s.id), name: s.name, url: s.url, status: s.status, version: s.version }));
+      return (Array.isArray(j) ? j : []).map((s) => ({ id: stripBraces(s.id), name: s.name, url: s.url, status: s.status, version: s.version, endpoints: [] }));
     }
   }
 
@@ -188,9 +188,18 @@ class DWSpectrumServer {
       const s = (await this._servers.list).find((x) => x.id === sid);
       if (!s || !/online/i.test(s.status || '')) return this.base;
       const scheme = this.https ? 'https' : 'http';
-      const hosts = [...new Set([s.url ? new URL(s.url).host : null, ...s.endpoints].filter((h) => h && !/^(\[|10\.|127\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(h)))];
+      const hosts = new Set();
+      for (const endpoint of [s.url, ...s.endpoints]) {
+        if (typeof endpoint !== 'string' || !endpoint) continue;
+        try {
+          const url = new URL(endpoint.includes('://') ? endpoint : `${scheme}://${endpoint}`);
+          if (!/^https?:$/.test(url.protocol) || url.username || url.password) continue;
+          if (/^(\[|localhost$|0\.|10\.|127\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i.test(url.hostname)) continue;
+          hosts.add(url.host);
+        } catch (_) {}
+      }
       const ok = (h) => request(`${scheme}://${h}/rest/v2/system/info`, { auth: this.authFor(), timeout: 3000 }).then((r) => { if (r.status !== 200) throw new Error(String(r.status)); return `${scheme}://${h}`; });
-      return hosts.length ? Promise.any(hosts.map(ok)).catch(() => this.base) : this.base;
+      return hosts.size ? Promise.any([...hosts].map(ok)).catch(() => this.base) : this.base;
     })();
     this.serverBase.set(sid, { at: Date.now(), base });
     return base;

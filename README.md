@@ -1,6 +1,6 @@
 # UniVMS
 
-**Download:** installers for Windows (.exe), Debian/Ubuntu (.deb) and Fedora/RHEL (.rpm) are on the [Releases page](https://github.com/gxmonto/univms/releases). The Windows installer updates itself; the portable exe and Linux packages show a download link when a new version is out.
+**Download:** installers for Windows (.exe), Debian/Ubuntu (.deb) and Fedora/RHEL (.rpm) are on the [Releases page](https://github.com/gxmonto/univms/releases). UniVMS checks for updates automatically. The Windows installer downloads updates in the background and installs them on quit or restart. The portable exe and Linux packages offer a download link.
 
 Multi-vendor video management client (iVMS-4200 style) for **Hikvision** NVRs / DVRs / IP cameras (ISAPI) and **Digital Watchdog DW Spectrum** servers (Nx-based API). Runs on Windows (NSIS installer + portable exe), Debian/Ubuntu (`.deb`) and Fedora/RHEL (`.rpm`).
 

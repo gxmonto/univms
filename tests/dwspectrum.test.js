@@ -19,7 +19,7 @@ function mockNx() {
       }
       if (req.headers.authorization !== 'Bearer vms-token-1') return json({ error: 'unauthorized' }, 401);
       if (req.url === '/rest/v2/system/info') return json({ name: 'HQ System', localId: '{abc}', version: '6.0.1.12345' });
-      if (req.url === '/rest/v2/servers') return json([{ id: '{ee9cc344-2d09-4d3a-ede5-4170c9c77cb0}', name: 'Server A', url: 'https://127.0.0.1:7001', status: 'Online', version: '6.0.1' }]);
+      if (req.url === '/rest/v2/servers') return json([{ id: '{ee9cc344-2d09-4d3a-ede5-4170c9c77cb0}', name: 'Server A', url: 'https://127.0.0.1:7001', status: 'Online', version: '6.0.1', endpoints: { address: '127.0.0.1' } }]);
       if (req.url === '/rest/v2/devices') return json([
         { id: '{0016575c-f1bd-ab3a-570d-e1f0cfc261fd}', name: 'Lobby', physicalId: 'abc', url: 'rtsp://10.0.0.5:554/stream', serverId: '{ee9cc344-2d09-4d3a-ede5-4170c9c77cb0}', status: 'Recording', vendor: 'GENERIC_RTSP', model: 'x', group: { id: 'g', name: 'Myrtle Ave' }, parameters: { overrideAr: '1.77778', mediaStreams: JSON.stringify({ streams: [{ codec: 27, resolution: '640x480' }, { encoderIndex: -1, resolution: '*', transcodingRequired: true }] }) } },
         { id: '{1116575c-f1bd-ab3a-570d-e1f0cfc261fd}', name: 'Garage', url: 'http://10.0.0.6', serverId: '{ee9cc344-2d09-4d3a-ede5-4170c9c77cb0}', status: 'Offline' },

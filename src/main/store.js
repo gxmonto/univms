@@ -32,7 +32,6 @@ const DEFAULTS = {
     autoLogin: false,
     minimizeToTray: false,
     startFullscreen: false,
-    updates: { mode: 'ask', url: '', token: '', skippedVersion: '' },
     autoSwitchInterval: 10,
     hwDecode: true,
     eventRetention: 2000,
@@ -50,6 +49,10 @@ class Store {
     this.data = JSON.parse(JSON.stringify(DEFAULTS));
     this._saveTimer = null;
     this.load();
+    if (Object.hasOwn(this.data.settings, 'updates')) {
+      delete this.data.settings.updates;
+      this.save();
+    }
     this.migrateSecrets();
     // 2026-10-21: alarm popups and sound became opt-in; switch them off once on existing installs
     if (!this.data.settings.alarmsOptIn) {
@@ -199,7 +202,8 @@ class Store {
   // ---- settings ----
   getSettings() { return { ...this.data.settings }; }
   setSettings(patch) {
-    this.data.settings = { ...this.data.settings, ...patch };
+    const { updates: _legacyUpdates, ...settings } = patch || {};
+    this.data.settings = { ...this.data.settings, ...settings };
     this.save();
     return this.getSettings();
   }
@@ -259,8 +263,7 @@ class Store {
     }
     for (const coll of ['views', 'groups', 'maps']) for (const it of payload[coll] || []) this.upsert(coll, it);
     this.data.cameraAliases = { ...this.data.cameraAliases, ...(payload.cameraAliases || {}) };
-    if (payload.settings) this.data.settings = { ...this.data.settings, ...payload.settings };
-    this.save();
+    this.setSettings(payload.settings || {});
     return { devices: (payload.devices || []).length, views: (payload.views || []).length };
   }
 }
