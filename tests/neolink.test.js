@@ -2,6 +2,12 @@
 // Reolink UID relay: Neolink config generation and the local RTSP URLs (no process is started here).
 const test = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { EventEmitter } = require('node:events');
+const { PassThrough } = require('node:stream');
+const childProcess = require('node:child_process');
 const neolink = require('../src/main/neolink');
 const { ReolinkUidDevice } = require('../src/main/reolinkuid');
 
@@ -24,7 +30,49 @@ test('neolink config: one camera entry per channel, UID vs address', () => {
   assert.ok(neolink.isUid('9527000KP8KGP7VF') && !neolink.isUid('192.168.1.5:9000'));
 });
 
-test('reolinkuid driver: channels and URLs, unsupported features reject', async () => {
+test('concurrent tiles share one Neolink process and canceled starts do not spawn', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'univms-relay-'));
+  const resourcesPath = process.resourcesPath;
+  const modulePath = require.resolve('../src/main/neolink');
+  const priorModule = require.cache[modulePath];
+  fs.mkdirSync(path.join(dir, 'neolink'));
+  fs.writeFileSync(path.join(dir, 'neolink', process.platform === 'win32' ? 'neolink.exe' : 'neolink'), '');
+  process.resourcesPath = dir;
+  const spawn = t.mock.method(childProcess, 'spawn', () => Object.assign(new EventEmitter(), {
+    pid: 1, killed: false, exitCode: null, signalCode: null, stdout: new PassThrough(), stderr: new PassThrough(),
+    kill() { this.killed = true; },
+  }));
+  delete require.cache[modulePath];
+  const relay = require(modulePath);
+  relay.init({ userData: dir });
+  t.after(() => {
+    relay.shutdown();
+    require.cache[modulePath] = priorModule;
+    if (resourcesPath === undefined) delete process.resourcesPath;
+    else process.resourcesPath = resourcesPath;
+    fs.unlinkSync(path.join(dir, 'neolink', process.platform === 'win32' ? 'neolink.exe' : 'neolink'));
+    fs.rmdirSync(path.join(dir, 'neolink'));
+    fs.rmdirSync(dir);
+  });
+
+  const dev = { id: 'recorder', host: '127.0.0.1:9000', channels: 8 };
+  const ports = await Promise.all(Array.from({ length: 8 }, () => relay.ensure(dev)));
+  assert.deepStrictEqual(new Set(ports), new Set([relay.port(dev.id)]));
+  assert.strictEqual(spawn.mock.callCount(), 1);
+  const helper = spawn.mock.calls[0].result;
+  helper.stdout.write('[INFO] ch0: Available');
+  helper.stderr.write('a warning from GStreamer\n');
+  helper.stdout.write(' at /ch0/subStream\n');
+  assert.deepStrictEqual(relay.state(dev.id).ready, ['ch0']);
+
+  const canceled = relay.ensure({ ...dev, id: 'deleted-recorder' });
+  relay.stop('deleted-recorder');
+  await assert.rejects(canceled, /canceled/);
+  assert.strictEqual(spawn.mock.callCount(), 1);
+});
+
+test('reolinkuid driver: channels and URLs, unsupported features reject', async (t) => {
+  t.mock.method(require('../src/main/reolinksdk'), 'available', () => false);
   const d = new ReolinkUidDevice({ id: 'dev_1', host: '9527000KP8KGP7VF', username: 'admin', password: 'x', channels: 3 });
   const cams = await d.cameras();
   // channels only log in while viewed, so "not tried yet" counts as online; only a failed attempt marks one offline

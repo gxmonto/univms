@@ -79,7 +79,7 @@ if (!gotLock && !SMOKE && !E2E) {
       frame: false, // custom title bar with min/max/close in the renderer (same as TwinLine)
       icon: path.join(__dirname, '..', '..', 'build', process.platform === 'win32' ? 'icon.ico' : 'icons/256x256.png'),
       webPreferences: {
-        preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: false,
+        preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true,
         backgroundThrottling: false, spellcheck: false,
       },
     });
@@ -104,7 +104,8 @@ if (!gotLock && !SMOKE && !E2E) {
     // reload / renderer crash: the old renderer's streams have no consumer any more
     wc.on('did-start-navigation', (e) => { if (e.isMainFrame !== false) streams.stopAllFor(wc); });
     win.webContents.on('will-navigate', (e) => e.preventDefault());
-    win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
+    win.webContents.on('will-attach-webview', (e) => e.preventDefault());
+    win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:\/\//i.test(url)) shell.openExternal(url); return { action: 'deny' }; });
     let rendererRestarts = [];
     win.webContents.on('render-process-gone', (_e, d) => {
       log('renderer gone', d.reason, 'exit code', d.exitCode);
@@ -194,7 +195,6 @@ if (!gotLock && !SMOKE && !E2E) {
 
     ctx.updater = new Updater({ log });
     ctx.updater.on('status', (s) => broadcast('updates:status', s));
-    ctx.updater.configure(store.getSettings().updates);
     if (!SMOKE && !E2E) ctx.updater.start();
 
     const win = createWindow();

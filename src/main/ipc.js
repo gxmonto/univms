@@ -3,6 +3,7 @@ const { ipcMain, dialog, shell, app, BrowserWindow } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { pathToFileURL } = require('url');
 const { TYPES, splitCameraId } = require('./drivers');
 const ffmpegBin = require('./ffmpeg');
 const discovery = require('./discovery');
@@ -15,10 +16,16 @@ function ts(d = new Date()) {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 const safeName = (s) => String(s || 'camera').replace(/[^\w.-]+/g, '_').slice(0, 60);
+const rendererPage = pathToFileURL(path.join(__dirname, '..', 'renderer', 'index.html')).href;
 
 function register(ctx) {
   const { store, pool, streams, hub, broadcast, createWindow, log } = ctx;
   const h = (channel, fn) => ipcMain.handle(channel, async (event, ...args) => {
+    const frame = event.senderFrame;
+    if (!frame || frame !== event.sender.mainFrame || frame.url.split(/[?#]/, 1)[0] !== rendererPage || !BrowserWindow.fromWebContents(event.sender)) {
+      log('ipc refused', channel);
+      throw new Error('Unexpected IPC sender');
+    }
     try {
       return await fn(event, ...args);
     } catch (e) {
@@ -78,12 +85,9 @@ function register(ctx) {
   });
   // ---------- updates ----------
   h('updates:status', () => ctx.updater ? ctx.updater.status : null);
-  h('updates:check', async () => { if (!ctx.updater) return null; const s = await ctx.updater.check({ manual: true }); return { ...s, manualCheck: true }; });
+  h('updates:check', () => ctx.updater ? ctx.updater.check() : null);
   h('updates:download', () => ctx.updater ? ctx.updater.download() : null);
   h('updates:install', () => ctx.updater ? ctx.updater.install() : { ok: false, reason: 'Updater unavailable' });
-  h('updates:skip', (_e, version) => { if (!ctx.updater) return null; const v = ctx.updater.skip(version); store.setSettings({ updates: { ...store.getSettings().updates, skippedVersion: v } }); return v; });
-  h('updates:dismiss', () => ctx.updater ? ctx.updater.dismiss() : null);
-  h('updates:configure', (_e, patch) => { const u = { ...store.getSettings().updates, ...patch }; store.setSettings({ updates: u }); if (ctx.updater) ctx.updater.configure(u); return u; });
   h('app:openPath', (_e, p) => shell.openPath(p));
   h('app:showInFolder', (_e, p) => shell.showItemInFolder(p));
   h('window:fullscreen', (e, on) => { const w = BrowserWindow.fromWebContents(e.sender); if (w) w.setFullScreen(on === undefined ? !w.isFullScreen() : !!on); return w ? w.isFullScreen() : false; });

@@ -34,7 +34,10 @@ class ReolinkUidDevice {
   /** Recorder slot list through Reolink's SDK (needs the Reolink desktop app): [{ channel, name, state }] without empty slots. */
   async slots() {
     if (!rsdk.available()) return null;
-    try { const s = (await rsdk.call('cameras', this.sdkDev())).filter((x) => x.state !== 2); return s.length ? s : null; } catch (_) { return null; }
+    this.slotLookup ||= rsdk.call('cameras', this.sdkDev()).then((slots) => slots.filter((x) => x.state !== 2))
+      .catch(() => null).finally(() => { this.slotLookup = null; });
+    const slots = await this.slotLookup;
+    return slots?.length ? slots : null;
   }
 
   async probe() {
@@ -49,6 +52,7 @@ class ReolinkUidDevice {
   systemStatus() { return Promise.resolve({}); }
 
   applySlots(slots) {
+    this.knownSlots = slots;
     this.slotIds = slots.map((x) => x.channel).sort((a, b) => a - b);
     this.offline = new Set(slots.filter((x) => x.state === 0).map((x) => x.channel)); // recorder says: camera disconnected
   }
@@ -64,6 +68,7 @@ class ReolinkUidDevice {
       return slots.map((x) => cam(x.channel, x.name, x.state === 1));
     }
     const st = neolink.state(this.id) || { cams: {} };
+    if (this.knownSlots) return this.knownSlots.map((x) => cam(x.channel, x.name, x.state === 1 && st.cams[`ch${x.channel}`] !== 'error'));
     const out = [];
     for (let ch = 0; ch < this.channels; ch++) out.push(cam(ch, null, st.cams[`ch${ch}`] !== 'error'));
     return out;
@@ -74,9 +79,14 @@ class ReolinkUidDevice {
     const ch = Number(channel);
     // the recorder reports this slot's camera as disconnected: fail fast instead of opening a relay stream that never has video
     if (this.offline && this.offline.has(ch)) throw new Error('Camera offline (the recorder reports it disconnected)');
-    if (!neolink.port(this.id)) await this.probe();
+    if (!neolink.port(this.id)) {
+      // Saved views can reference a sparse NVR slot outside the configured fallback count.
+      if (!this.slotIds && ch >= this.channels) await this.probe();
+      else await this.relay();
+    }
     for (let i = 0; i < 90; i++) {
       const st = neolink.state(this.id);
+      if (st?.authFailure) throw Object.assign(new Error('Login rejected through the Reolink relay'), { authFailure: true });
       if (!st || !st.running) throw new Error((st && st.error) || 'Reolink relay not running');
       if (st.ready.includes(`ch${ch}`)) return `rtsp://127.0.0.1:${st.port}/ch${ch}/${stream === 'main' ? 'mainStream' : 'subStream'}`;
       await new Promise((r) => setTimeout(r, 500));

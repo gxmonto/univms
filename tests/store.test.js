@@ -50,3 +50,17 @@ test('app users: scrypt hash + verify', () => {
   assert.ok(s.verifyUser('mike', 'hunter2'));
   assert.strictEqual(s.verifyUser('mike', 'wrong'), null);
 });
+
+test('obsolete update preferences are stripped on load, settings edits, and import', () => {
+  const file = tmpFile();
+  const updates = { url: 'https://example.test', token: 'old-token', mode: 'off' };
+  fs.writeFileSync(file, JSON.stringify({ settings: { updates, defaultStream: 'main' } }));
+  const store = mk(file);
+  assert.strictEqual(store.getSettings().defaultStream, 'main');
+  assert.strictEqual(store.getSettings().updates, undefined);
+  store.setSettings({ updates });
+  store.importConfig({ format: 'univms-config', data: { settings: { updates } } });
+  assert.strictEqual(store.getSettings().updates, undefined);
+  store.flush();
+  assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /old-token/);
+});

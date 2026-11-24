@@ -1,6 +1,6 @@
 // Update notifications: "new version available" dialog with release notes, download progress,
 // restart prompt, and a one-time "what's new" after an upgrade.
-import { api, on, state, el, svg, btn, modal, toast, fmtBytes, escapeHtml } from './core.js';
+import { api, on, state, el, modal, toast, fmtBytes, escapeHtml } from './core.js';
 
 let dialog = null;      // { close, body } for the active update modal
 let status = null;
@@ -30,7 +30,7 @@ function body(s) {
     wrap.append(el('p', {}, `Downloading UniVMS ${s.version}…`), el('div', { class: 'progress', style: { margin: '8px 0' } }, el('i', { style: { width: pct + '%' } })),
       el('div', { class: 'dim small' }, s.progress && s.progress.total ? `${fmtBytes(s.progress.transferred)} of ${fmtBytes(s.progress.total)}${s.progress.bps ? ` • ${fmtBytes(s.progress.bps)}/s` : ''}` : ''));
   } else if (s.state === 'downloaded') {
-    wrap.append(el('p', {}, `UniVMS ${s.version} has been downloaded. Click Restart and update: the app closes, installs silently in the background (no installer wizard) and reopens on the new version. Your devices, views and settings are kept.`));
+    wrap.append(el('p', {}, `UniVMS ${s.version} is ready. Restart now to install and reopen UniVMS, or let it install the next time you quit.`));
   } else {
     wrap.append(el('p', { class: 'muted' }, `You have ${s.current}. Version ${s.version} is available.`));
     if (s.packageKind === 'portable') wrap.append(el('p', { class: 'small warn' }, 'The portable exe cannot update itself: download the new file, close UniVMS and replace the old exe.'));
@@ -44,9 +44,8 @@ function buttons(s) {
   if (s.state === 'downloading') return [{ label: 'Hide', onClick: (close) => { close(); } }];
   if (s.state === 'downloaded') return [{ label: 'Later', onClick: (close) => close() }, { label: 'Restart and update', primary: true, onClick: async (close) => { const r = await api('updates:install'); if (!r.ok) toast(r.reason, 'warn'); else close(); } }];
   return [
-    { label: 'Skip this version', left: true, onClick: async (close) => { await api('updates:skip', s.version); close(); } },
-    { label: 'Later', onClick: async (close) => { await api('updates:dismiss'); close(); } },
-    { label: s.manualDownloadUrl ? 'Download' : 'Download and install', primary: true, onClick: async (close) => { await api('updates:download'); if (s.manualDownloadUrl) close(); } },
+    { label: 'Later', onClick: (close) => close() },
+    { label: 'Download', primary: true, onClick: async (close) => { await api('updates:download'); close(); } },
   ];
 }
 
@@ -71,7 +70,6 @@ export async function initUpdates() {
     if (dialog) { if (!prev || prev.state !== s.state || (s.state === 'downloading')) refreshDialog(s); return; }
     if (s.state === 'available' && shownFor !== s.version) { shownFor = s.version; showUpdateDialog(s); }
     else if (s.state === 'downloaded' && shownFor !== 'dl:' + s.version) { shownFor = 'dl:' + s.version; showUpdateDialog(s); }
-    else if (s.state === 'error' && s.manualCheck) toast('Update check failed: ' + s.error, 'err', 6000);
   });
   status = await api('updates:status').catch(() => null);
   // What's new after an upgrade (once per version)
