@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "UniVMS Rust",
+  "identifier": "com.univms.rust",
+  "build": { "frontendDist": "../src/renderer" },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "deb", "rpm"],
+    "category": "Video",
+    "shortDescription": "Video management client (Rust test build)",
+    "icon": ["icons/icon.png", "icons/icon.ico"],
+    "windows": { "nsis": { "installMode": "currentUser" } }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "UniVMS windows: one ipc command plus window dragging.",
+  "windows": ["main", "aux-*"],
+  "permissions": ["core:default", "core:window:allow-start-dragging"]
+}
